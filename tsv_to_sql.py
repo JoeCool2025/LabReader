@@ -43,7 +43,7 @@ ubw_colonade_gw_locations_table = sqla.Table(
 metadata_obj.create_all(engine)
 
 with engine.connect() as conn:
-    for row in df.iloc[:, 2].unique():
+    for row in df.loc[:, 'Sampnum'].unique():
         result = conn.execute(
             sqla.insert(ubw_colonade_gw_locations_table),
             [{"Location_Name": row}]
