@@ -7,14 +7,11 @@ from sqlalchemy import (
     Date,
     Float,
     ForeignKey,
-    Insert,
     Integer,
     MetaData,
     String,
     Table,
-    select,
     create_engine,
-    exc
 )
 
 def db_maker(file):
@@ -49,14 +46,75 @@ def db_maker(file):
         Column('Location Name', String, ForeignKey('gw_locations.Location_Name'), nullable=False),
         Column('Analyte', String, nullable=False),
         Column('Sample Date', Date, nullable=False),
-        Column('Result', Float, nullable=False),
+        Column('Result', Float),
         Column('Result Unit', String, nullable=False),
         Column('Method Detection Limit', Float),
         Column('Flag', String),
-        Column('Detect', Boolean), #nullable=False),
-        Column('Trace', Boolean), #nullable=False),
-        Column('Duplicate', Boolean), #nullable=False),
-        Column('Exclude', Boolean), #nullable=False),
+        Column('Detect', Boolean),
+        Column('Trace', Boolean),
+        Column('Duplicate', Boolean),
+        Column('Exclude', Boolean),
+        Column('Chem Group', String),
+    )
+
+    soil_location = Table(
+        'soil_locations',
+        metadata_obj,
+        Column('Location_Name', String, primary_key=True),
+        Column('X Coordinate', Float),
+        Column('Y Coordinate', Float),
+        Column('Longitude', Float),
+        Column('Latitude', Float),
+        Column('Thickness', Float),
+        Column('Units of Thickness', String),
+        Column('Bulk Density', Float),
+        Column('Units of Bulk Density', String),
+        Column('Percent_Low_K', Float, CheckConstraint('Percent_Low_K > 0 AND Percent_Low_K < 100')),
+    )
+
+    soil_data = Table(
+        'soil_results',
+        metadata_obj,
+        Column('id', Integer, primary_key=True, autoincrement=True),
+        Column('Location Name', String, ForeignKey('soil_locations.Location_Name'), nullable=False),
+        Column('Analyte', String, nullable=False),
+        Column('Sample Date', Date, nullable=False),
+        Column('Result', Float),
+        Column('Result Unit', String, nullable=False),
+        Column('Method Detection Limit', Float),
+        Column('Flag', String),
+        Column('Detect', Boolean),
+        Column('Trace', Boolean),
+        Column('Duplicate', Boolean),
+        Column('Exclude', Boolean),
+        Column('Chem Group', String),
+    )
+
+    porewater_location = Table(
+        'porewater_locations',
+        metadata_obj,
+        Column('Location_Name', String, primary_key=True),
+        Column('X Coordinate', Float),
+        Column('Y Coordinate', Float),
+        Column('Longitude', Float),
+        Column('Latitude', Float),
+    )
+
+    porewater_data = Table(
+        'porewater_results',
+        metadata_obj,
+        Column('id', Integer, primary_key=True, autoincrement=True),
+        Column('Location Name', String, ForeignKey('porewater_locations.Location_Name'), nullable=False),
+        Column('Analyte', String, nullable=False),
+        Column('Sample Date', Date, nullable=False),
+        Column('Result', Float),
+        Column('Result Unit', String, nullable=False),
+        Column('Method Detection Limit', Float),
+        Column('Flag', String),
+        Column('Detect', Boolean),
+        Column('Trace', Boolean),
+        Column('Duplicate', Boolean),
+        Column('Exclude', Boolean),
         Column('Chem Group', String),
     )
 

@@ -5,7 +5,6 @@ current_sites = []
 
 layout = [
     [sg.Button(button_text='Import Lab Data')],
-    [sg.Text('Select currently available site'), sg.Combo(current_sites), sg.Text('Or create a new site'), sg.Input(default_text='')],
     [sg.HorizontalSeparator(thickness=4)],
     [sg.Button(button_text='Exit')]
 ]
@@ -21,7 +20,6 @@ while True:
         if lab_file.lower().endswith(".txt"):
             db_path = sg.popup_get_file(message='Select Existing Database\n(or cancel to create a new database)', file_types=(('.db', '*.db'),))
             tsv_reader(lab_file, db_path)
-            print("TSV read")
         else:
             print(lab_file)
     

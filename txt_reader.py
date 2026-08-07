@@ -1,18 +1,7 @@
-import os
-from pathlib import Path
-
 import pandas as pd
 from sqlalchemy import (
-    Boolean,
-    CheckConstraint,
-    Column,
-    Date,
-    Float,
-    ForeignKey,
     Insert,
-    Integer,
     MetaData,
-    String,
     Table,
     select,
     create_engine,
@@ -67,9 +56,5 @@ def tsv_reader(file, db):
                     'Method Detection Limit': mdl},
                 ],
             )
-        stmt = select(gw_data)
-        for row in conn.execute(stmt):
-            print(row)
-        conn.commit()
 
-    return db_path
+    return
