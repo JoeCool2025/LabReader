@@ -1,4 +1,6 @@
 import pandas as pd
+import PySimpleGUI as sg
+from casn_lookup import casn_search
 from sqlalchemy import (
     Insert,
     MetaData,
@@ -43,8 +45,14 @@ def tsv_reader(file, db):
             for item in dup_list:
                 print(item)
         for x in range(0, len(df)):
-            location, analyte, date, result, res_unit, mdl = df.loc[x, ['Sampnum', 'Analtparam', 'Sampdate', 'Conc', 'Concunits', 'Mdl']]
+            location, analyte_name, date, result, res_unit, mdl = df.loc[x, ['Sampnum', 'Analtparam', 'Sampdate', 'Conc', 'Concunits', 'Mdl']]
             date = pd.to_datetime(date)
+            while True:
+                try:
+                    analyte = casn_search(analyte_name)
+                    break
+                except FileNotFoundError:
+                    analyte_name = sg.popup_get_text(f'{analyte_name} not found in CASN Database\nPlease enter CASN for {analyte_name}:', default_text='')
             conn.execute(
                 Insert(gw_data),
                 [
