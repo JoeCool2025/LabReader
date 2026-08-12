@@ -18,7 +18,7 @@ casn = {
     '6369-59-1': ['1,4-benzenediamine, 2-methyl-, sulfate (1:?)', 'toluene-2,5-diamine, sulfate', '1,4-benzenediamine, 2-methyl-, sulfate', 'c.i. 76043', 'c.i. oxidation base 4', 'fouramine std', 'p-toluenediamine sulfate', '2,5-diaminotoluene sulfate', 'p-toluylenediamine sulfate'],
     '92-87-5': ["[1,1'-biphenyl]-4,4'-diamine", 'benzidine', "4,4'-biphenyldiamine", 'c.i. azoic diazo component 112', "4,4'-diaminobiphenyl", 'p-diaminodiphenyl', "4,4'-diphenylenediamine", 'fast corinth base b', "4,4'-bianiline", "4,4'-diaminodiphenyl", "p,p'-diaminodiphenyl", "p,p'-bianiline", "4,4'-diamino-1,1'-biphenyl", "4'-amino-[1,1'-biphenyl]-4-ylamine", '4-(4-aminophenyl)aniline', 'nsc 146476', "4,4'-diaminobenzidine"],
     '98-07-7': ['benzene, (trichloromethyl)-', 'toluene, α,α,α-trichloro-', '(trichloromethyl)benzene', 'benzenyl trichloride', 'benzotrichloride', 'benzylidyne chloride', 'phenylchloroform', 'toluene trichloride', 'α,α,α-trichlorotoluene', 'ω,ω,ω-trichlorotoluene', 'benzenyl chloride', 'benzyl trichloride', 'phenyltrichloromethane', '1-(trichloromethyl)benzene', 'trichlorophenylmethane', 'nsc 14663'],
-    
+
 }
 
 def casn_search(analyte):
@@ -30,11 +30,11 @@ def casn_search(analyte):
     else:
         return poss_casn
 
-while True:
-    x = input('search analyte: ')
-    if x.lower() == 'exit':
-        break
-    try:
-        print(casn_search(x))
-    except FileNotFoundError:
-        print('analyte not found')
+#while True:
+    #x = input('search analyte: ')
+    #if x.lower() == 'exit':
+        #break
+    #try:
+        #print(casn_search(x))
+    #except FileNotFoundError:
+        #print('analyte not found')
