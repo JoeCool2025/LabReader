@@ -2,18 +2,20 @@ import PySimpleGUI as sg
 from txt_reader import tsv_reader
 from db_viewer import db2df
 
-current_sites = []
+view_options = ['Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
 
 layout = [
-    [sg.Button(button_text='Import Lab Data'), sg.Button(button_text='View Database')],
+    [sg.Button(button_text='View Database'), sg.Button(button_text='Import Lab Data')],
+    [sg.Text('Select Optional Data Columns to View')],
+    [sg.Listbox(values=view_options, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20, 6), key='-OPTCOLUMNS-')],
     [sg.HorizontalSeparator(thickness=4)],
     [sg.Button(button_text='Exit')]
 ]
 
 header = ['Location', 'Analyte', 'CASN', 'Sample Date', 'Conc', 'Conc Units', 'MDL']
-checkgw = False
-checksoil = False
-checkpore = False
+headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Layer', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
+headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
+headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude']
 
 rkeys = {'-GW-': 'Groundwater', '-SOIL-': 'Soil', '-PORE-': 'Porewater'}
 selection_layout = [
@@ -72,14 +74,18 @@ while True:
     if event == 'View Database':
         db_path = sg.popup_get_file(message='Select Existing Database', file_types=((".db", "*.db"),))
         if db_path != None and db_path != '':
-            user_columns = []
+            user_columns = values['-OPTCOLUMNS-']
+            header += user_columns
             try:
-                df_gw, df_soil, df_pore = db2df(db_path)
+                df_gw, gwloc, df_soil, soilloc, df_pore, poreloc = db2df(db_path, user_columns)
             except Exception as e:
                 print(e)
                 break
             sg.Window('Database View', [[sg.TabGroup([[
-                sg.Tab('Groundwater Data', [[sg.Table(values=df_gw, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, enable_cell_editing=True)]], disabled=checkgw),
-                sg.Tab('Soil Data', [[sg.Table(values=df_soil, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]], disabled=checksoil),
-                sg.Tab('Porewater Data', [[sg.Table(values=df_pore, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]], disabled=checkpore)
+                sg.Tab('Groundwater Data', [[sg.Table(values=df_gw, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
+                sg.Tab('Groundwater Locations', [[sg.Table(values=gwloc, headings=headergw, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
+                sg.Tab('Soil Data', [[sg.Table(values=df_soil, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
+                sg.Tab('Soil Locations', [[sg.Table(values=soilloc, headings=headersoil, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
+                sg.Tab('Porewater Data', [[sg.Table(values=df_pore, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
+                sg.Tab('Porewater Locations', [[sg.Table(values=poreloc, headings=headerpore, expand_x=True, expand_y=True, vertical_scroll_only=False)]])
             ]])]]).read()

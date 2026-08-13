@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import Table, create_engine, MetaData, select
 import numpy as np
 
-def db2df(path, columns=['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit']):
+def db2df(path, user_col=[]):
     if path == None or path == '':
         raise Exception("No Database Chosen")
     engine = create_engine(f'sqlite:///{path}')
@@ -16,8 +16,13 @@ def db2df(path, columns=['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Res
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
 
     gw = []
+    gwloc = []
     soil = []
+    soilloc = []
     pore = []
+    poreloc = []
+    columns = ['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit']
+    columns += user_col
     
     for column in columns:
         if column == 'Method_Detection_Limit':
@@ -40,6 +45,15 @@ def db2df(path, columns=['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Res
                     gw[i].append(stmt.iloc[i, 0])
                 except:
                     gw.append([stmt.iloc[i, 0]])
+    stmt = pd.read_sql("SELECT * FROM gw_locations", con=engine)
+    for i in range(0, len(stmt)):
+        row = []
+        for a in range(0, 10):
+            if type(stmt.iloc[i, a]) == np.float64:
+                row.append(float(stmt.iloc[i, a]))
+            else:
+                row.append(stmt.iloc[i, a])
+        gwloc.append(row)
     for column in columns:
         if column == 'Method_Detection_Limit':
             stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM soil_results", con=engine)
@@ -61,6 +75,15 @@ def db2df(path, columns=['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Res
                     soil[i].append(stmt.iloc[i, 0])
                 except:
                     soil.append([stmt.iloc[i, 0]])
+    stmt = pd.read_sql("SELECT * FROM soil_locations", con=engine)
+    for i in range(0, len(stmt)):
+        row = []
+        for a in range(0, 10):
+            if type(stmt.iloc[i, a]) == np.float64:
+                row.append(float(stmt.iloc[i, a]))
+            else:
+                row.append(stmt.iloc[i, a])
+        soilloc.append(row)
     for column in columns:
         if column == 'Method_Detection_Limit':
             stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM porewater_results", con=engine)
@@ -82,9 +105,13 @@ def db2df(path, columns=['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Res
                     pore[i].append(stmt.iloc[i, 0])
                 except:
                     pore.append([stmt.iloc[i, 0]])
-    return gw, soil, pore
-
-#try:
-    #db2df('C:\\Users\\ICohen\\Documents\\LabReader\\Databases\\UB-WALDWICK.db')
-#except Exception as e:
-    #print(f"oops: {e}")
+    stmt = pd.read_sql("SELECT * FROM porewater_locations", con=engine)
+    for i in range(0, len(stmt)):
+        row = []
+        for a in range(0, 5):
+            if type(stmt.iloc[i, a]) == np.float64:
+                row.append(float(stmt.iloc[i, a]))
+            else:
+                row.append(stmt.iloc[i, a])
+        poreloc.append(row)
+    return gw, gwloc, soil, soilloc, pore, poreloc
