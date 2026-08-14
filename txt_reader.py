@@ -50,7 +50,7 @@ def _safe_popup_s_tail(prompt, default=None):
 
 def tsv_reader(file, db, labtype):
     global dup_list
-    if db == None:
+    if db == None or db == '':
         db_path = db_maker(file)
     else:
         db_path = db
@@ -72,7 +72,20 @@ def tsv_reader(file, db, labtype):
         return
     with engine.begin() as conn:
         for row in df.loc[:, 'Sampnum'].unique():
-            site = row[:-5]
+            try:
+                sampdate = pd.to_datetime(df.loc[df['Sampnum'] == row, 'Sampdate'].iloc[0])
+            except IndexError:
+                sampdate = pd.to_datetime(sg.popup_get_date(title=f'No Date Found. Please provide date for {row}:'))
+            if isinstance(row, str) and len(row) >= 5 and row[-5] == '-' and row[-4:].isdigit():
+                if row[:2].lower() == 'tb' or row[:2].lower() == 'fb' or row[:3].lower() == 'dup':
+                    site = row[:-5] + '-' + sampdate.strftime("%m%Y")
+                else:
+                    site = row[:-5]
+            else:
+                if row[:2].lower() == 'tb' or row[:2].lower() == 'fb' or row[:3].lower() == 'dup':
+                    site = row + '-' + sampdate.strftime("%m%Y")
+                else:
+                    site = row
             try:
                 conn.execute(
                     Insert(gw_location_table),
@@ -149,7 +162,12 @@ def tsv_reader(file, db, labtype):
         for x in range(0, len(df)):
             location, analyte_name, casn, date, result, res_unit, mdl, flag = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual']]
             date = pd.to_datetime(date)
-            location = location[:-5]
+            if isinstance(location, str) and len(location) >= 5 and location[-5] == '-' and location[-4:].isdigit():
+                location = location[:-5]
+            if location[:2].lower() == 'tb' or location[:2].lower() == 'fb' or location[:3].lower() == 'dup':
+                location += '-' + date.strftime("%m%Y")
+            if result.lower() == 'nd':
+                result = None
             detect = True
             trace = False
             dup = False

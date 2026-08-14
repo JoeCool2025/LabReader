@@ -18,12 +18,16 @@ headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude
 headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude']
 
 rkeys = {'-GW-': 'Groundwater', '-SOIL-': 'Soil', '-PORE-': 'Porewater'}
-selection_layout = [
-    [sg.Radio('Groundwater', group_id='group1', key='-GW-', enable_events=True),
-     sg.Radio('Soil', group_id='group1', key='-SOIL-', enable_events=True),
-     sg.Radio('Porewater', group_id='group1', key='-PORE-', enable_events=True)],
-    [sg.Button(button_text='Select', key='-SELECT-', disabled=True)]
-]
+
+def make_selection_layout():
+    return [
+        [
+            sg.Radio('Groundwater', group_id='group1', key='-GW-', enable_events=True),
+            sg.Radio('Soil', group_id='group1', key='-SOIL-', enable_events=True),
+            sg.Radio('Porewater', group_id='group1', key='-PORE-', enable_events=True),
+        ],
+        [sg.Button(button_text='Select', key='-SELECT-', disabled=True)],
+    ]
 
 window = sg.Window('Window Title', layout)
 
@@ -41,7 +45,7 @@ while True:
         if not lab_file:
             continue
 
-        selection = sg.Window('Lab Selection', selection_layout, modal=True)
+        selection = sg.Window('Lab Selection', make_selection_layout(), modal=True)
         labtype = None
 
         while True:

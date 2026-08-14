@@ -20,6 +20,7 @@ def db_maker(file):
 
     db_name = df.iloc[0, 0] + '.db'
     db_dir = sg.popup_get_folder('Select Database Save Folder')
+    db_dir = Path(db_dir)
     db_dir.mkdir(parents=True, exist_ok=True)
     db_path = db_dir / db_name
     engine = create_engine(f'sqlite:///{db_path}')
