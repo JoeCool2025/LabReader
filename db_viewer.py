@@ -26,9 +26,9 @@ def db2df(path, user_col=[]):
     
     for column in columns:
         if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM gw_results", con=engine)
+            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM gw_results ORDER BY Location_Name, id", con=engine)
         else:
-            stmt = pd.read_sql(f"SELECT {column} FROM gw_results", con=engine)
+            stmt = pd.read_sql(f"SELECT {column} FROM gw_results ORDER BY Location_Name, id", con=engine)
         for i in range(0, len(stmt)):
             if type(stmt.iloc[i, 0]) == np.float64:
                 try:
@@ -45,7 +45,7 @@ def db2df(path, user_col=[]):
                     gw[i].append(stmt.iloc[i, 0])
                 except:
                     gw.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql("SELECT * FROM gw_locations", con=engine)
+    stmt = pd.read_sql("SELECT * FROM gw_locations ORDER BY Location_Name", con=engine)
     for i in range(0, len(stmt)):
         row = []
         for a in range(0, 10):
@@ -56,9 +56,9 @@ def db2df(path, user_col=[]):
         gwloc.append(row)
     for column in columns:
         if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM soil_results", con=engine)
+            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM soil_results ORDER BY Location_Name, id", con=engine)
         else:
-            stmt = pd.read_sql(f"SELECT {column} FROM soil_results", con=engine)
+            stmt = pd.read_sql(f"SELECT {column} FROM soil_results ORDER BY Location_Name, id", con=engine)
         for i in range(0, len(stmt)):
             if type(stmt.iloc[i, 0]) == np.float64:
                 try:
@@ -75,7 +75,7 @@ def db2df(path, user_col=[]):
                     soil[i].append(stmt.iloc[i, 0])
                 except:
                     soil.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql("SELECT * FROM soil_locations", con=engine)
+    stmt = pd.read_sql("SELECT * FROM soil_locations ORDER BY Location_Name", con=engine)
     for i in range(0, len(stmt)):
         row = []
         for a in range(0, 10):
@@ -86,9 +86,9 @@ def db2df(path, user_col=[]):
         soilloc.append(row)
     for column in columns:
         if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM porewater_results", con=engine)
+            stmt = pd.read_sql("SELECT Method_Detection_Limit AS MDL FROM porewater_results ORDER BY Location_Name, id", con=engine)
         else:
-            stmt = pd.read_sql(f"SELECT {column} FROM porewater_results", con=engine)
+            stmt = pd.read_sql(f"SELECT {column} FROM porewater_results ORDER BY Location_Name, id", con=engine)
         for i in range(0, len(stmt)):
             if type(stmt.iloc[i, 0]) == np.float64:
                 try:
@@ -105,7 +105,7 @@ def db2df(path, user_col=[]):
                     pore[i].append(stmt.iloc[i, 0])
                 except:
                     pore.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql("SELECT * FROM porewater_locations", con=engine)
+    stmt = pd.read_sql("SELECT * FROM porewater_locations ORDER BY Location_Name", con=engine)
     for i in range(0, len(stmt)):
         row = []
         for a in range(0, 5):
