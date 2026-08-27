@@ -1,9 +1,9 @@
 import PySimpleGUI as sg
 from txt_reader import tsv_reader
 from db_viewer import db2df
+from db_editor import parseedit
 
 view_options = ['Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
-
 layout = [
     [sg.Button(button_text='View Database'), sg.Button(button_text='Import Lab Data')],
     [sg.Text('Select Optional Data Columns to View')],
@@ -12,7 +12,7 @@ layout = [
     [sg.Button(button_text='Exit')]
 ]
 
-header = ['Location', 'Analyte', 'CASN', 'Sample Date', 'Conc', 'Conc Units', 'MDL']
+header = ['id', 'Location', 'Analyte', 'CASN', 'Sample Date', 'Conc', 'Conc Units', 'MDL']
 headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Layer', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
 headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
 headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude']
@@ -29,7 +29,43 @@ def make_selection_layout():
         [sg.Button(button_text='Select', key='-SELECT-', disabled=True)],
     ]
 
-window = sg.Window('Window Title', layout)
+window = sg.Window('ESI Database Viewer', layout)
+def dbwindow(dblayout):
+    dbwin = sg.Window('Database', dblayout)
+    return dbwin
+
+def values_equal(first, second):
+    if first != first and second != second:
+        return True
+    return first == second
+
+def make_editable_values(rows):
+    return [
+        ['' if value is None else value for value in row]
+        for row in rows
+    ]
+
+def get_table_values(db_path, user_columns):
+    df_gw, gwloc, df_soil, soilloc, df_pore, poreloc = db2df(db_path, user_columns)
+    table_values = {
+                    '-GWDATA-': make_editable_values(df_gw),
+                    '-GWLOC-': make_editable_values(gwloc),
+                    '-SOILDATA-': make_editable_values(df_soil),
+                    '-SOILLOC-': make_editable_values(soilloc),
+                    '-POREDATA-': make_editable_values(df_pore),
+                    '-PORELOC-': make_editable_values(poreloc),
+                }
+    return table_values
+
+def make_db_layout(table_values, editable):
+    return [[sg.TabGroup([[
+        sg.Tab('Groundwater Data', [[sg.Table(values=table_values['-GWDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Groundwater Locations', [[sg.Table(values=table_values['-GWLOC-'], headings=headergw, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWLOC-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Soil Data', [[sg.Table(values=table_values['-SOILDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Soil Locations', [[sg.Table(values=table_values['-SOILLOC-'], headings=headersoil, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILLOC-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Porewater Data', [[sg.Table(values=table_values['-POREDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-POREDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Porewater Locations', [[sg.Table(values=table_values['-PORELOC-'], headings=headerpore, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-PORELOC-', enable_cell_editing=editable, enable_events=editable)]])
+    ]])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable)]]
 
 while True:
     event, values = window.read()
@@ -81,15 +117,64 @@ while True:
             user_columns = values['-OPTCOLUMNS-']
             header += user_columns
             try:
-                df_gw, gwloc, df_soil, soilloc, df_pore, poreloc = db2df(db_path, user_columns)
+                table_values = get_table_values(db_path, user_columns)
             except Exception as e:
                 print(e)
                 break
-            sg.Window('Database View', [[sg.TabGroup([[
-                sg.Tab('Groundwater Data', [[sg.Table(values=df_gw, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
-                sg.Tab('Groundwater Locations', [[sg.Table(values=gwloc, headings=headergw, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
-                sg.Tab('Soil Data', [[sg.Table(values=df_soil, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
-                sg.Tab('Soil Locations', [[sg.Table(values=soilloc, headings=headersoil, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
-                sg.Tab('Porewater Data', [[sg.Table(values=df_pore, headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False)]]),
-                sg.Tab('Porewater Locations', [[sg.Table(values=poreloc, headings=headerpore, expand_x=True, expand_y=True, vertical_scroll_only=False)]])
-            ]])]]).read()
+            table_columns = {
+                '-GWDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-GWLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Layer', 'Source_Tail', 'Saturated_Thickness', 'Units_of_ST', 'Porosity'],
+                '-SOILDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-SOILLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Thickness', 'Units_of_Thickness', 'Bulk_Density', 'Units_of_Bulk_Density', 'Percent_Low_K'],
+                '-POREDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-PORELOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude'],
+            }
+            original_table_values = {
+                table_key: [row.copy() for row in rows]
+                for table_key, rows in table_values.items()
+            }
+            edit_toggle = False
+            dbwin = dbwindow(make_db_layout(table_values, edit_toggle))
+            edits = []
+            while True:
+                e2, v2 = dbwin.read()
+
+                if e2 == sg.WIN_CLOSED:
+                    break
+
+                edited_table = None
+                edited_cell = None
+                if isinstance(e2, tuple) and len(e2) == 3 and e2[0] in table_values:
+                    edited_table = e2[0]
+                    edited_cell = e2[2]
+
+                if e2 == 'Edit':
+                    edit_toggle = True
+                    dbwin.close()
+                    dbwin = dbwindow(make_db_layout(get_table_values(db_path, user_columns), edit_toggle))
+
+                if e2 == 'Cancel':
+                    edit_toggle = False
+                    edits.clear()
+                    dbwin.close()
+                    dbwin = dbwindow(make_db_layout(get_table_values(db_path, user_columns), edit_toggle))
+
+                if edited_table is not None and edited_cell is not None:
+                    table = dbwin[edited_table]
+                    current_values = table.Values
+                    row_idx, col_idx = edited_cell
+                    if row_idx < len(current_values) and col_idx < len(current_values[row_idx]):
+                        new_val = current_values[row_idx][col_idx]
+                        row_key = current_values[row_idx][0]
+                        col_key = table_columns[edited_table][col_idx]
+                        edits.append({"table": edited_table, "row": row_key, "col": col_key, "value": new_val})
+                        table_values[edited_table] = [row.copy() for row in current_values]
+
+                if e2 == 'Save':
+                    if not edits:
+                        sg.popup('No edits to save')
+                        continue
+                    parseedit(edits, db_path)
+                    dbwin.close()
+                    table_values = get_table_values(db_path, user_columns)
+                    dbwin = dbwindow(make_db_layout(table_values, edit_toggle))

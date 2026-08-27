@@ -94,20 +94,20 @@ def tsv_reader(file, db, labtype):
             except exc.IntegrityError:
                 dup_list.append(row)
 
-            xcoord = _safe_popup_float(f'Input X Coordinate for {site}:')
-            ycoord = _safe_popup_float(f'Input Y Coordinate for {site}:')
-            long = _safe_popup_value(f'Input Longitude for {site}:', allow_blank=True)
-            lat = _safe_popup_value(f'Input Latitude for {site}:', allow_blank=True)
+            xcoord = None #_safe_popup_float(f'Input X Coordinate for {site}:')
+            ycoord = None #_safe_popup_float(f'Input Y Coordinate for {site}:')
+            long = None #_safe_popup_value(f'Input Longitude for {site}:', allow_blank=True)
+            lat = None #_safe_popup_value(f'Input Latitude for {site}:', allow_blank=True)
 
             if labtype == 'Groundwater':
-                layer = _safe_popup_value(f'Input Layer for {site}:', allow_blank=True)
-                s_tail = _safe_popup_s_tail(
-                    f'Input S for Source, or T for Tail (leave blank if not in use) for {site}:',
-                    default=None,
-                )
-                sat_thick = _safe_popup_float(f'Input Saturated Thickness for {site}:')
-                stunit = _safe_popup_value(f'Input units for Saturated Thickness for {site}:', allow_blank=True)
-                porosity = _safe_popup_float(f'Input Porosity for {site}:')
+                layer = None #_safe_popup_value(f'Input Layer for {site}:', allow_blank=True)
+                s_tail = None #_safe_popup_s_tail(
+                    #f'Input S for Source, or T for Tail (leave blank if not in use) for {site}:',
+                    #default=None,
+                #)
+                sat_thick = None #_safe_popup_float(f'Input Saturated Thickness for {site}:')
+                stunit = None #_safe_popup_value(f'Input units for Saturated Thickness for {site}:', allow_blank=True)
+                porosity = None #_safe_popup_float(f'Input Porosity for {site}:')
                 conn.execute(
                     Update(gw_location_table)
                     .where(gw_location_table.c.Location_Name == site),
@@ -124,11 +124,11 @@ def tsv_reader(file, db, labtype):
                     }
                 )
             elif labtype == 'Soil':
-                thick = _safe_popup_float(f'Input Thickness for {site}:')
-                thickunit = _safe_popup_value(f'Input units for Thickness for {site}:', allow_blank=True)
-                bulkd = _safe_popup_float(f'Input Bulk Density for {site}:')
-                bulkdunit = _safe_popup_value(f'Input units for Bulk Density for {site}:', allow_blank=True)
-                perlowk = _safe_popup_float(f'Input Percentage Low K for {site}:')
+                thick = None #_safe_popup_float(f'Input Thickness for {site}:')
+                thickunit = None #_safe_popup_value(f'Input units for Thickness for {site}:', allow_blank=True)
+                bulkd = None #_safe_popup_float(f'Input Bulk Density for {site}:')
+                bulkdunit = None #_safe_popup_value(f'Input units for Bulk Density for {site}:', allow_blank=True)
+                perlowk = None #_safe_popup_float(f'Input Percentage Low K for {site}:')
                 conn.execute(
                     Update(soil_location_table)
                     .where(soil_location_table.c.Location_Name == site),

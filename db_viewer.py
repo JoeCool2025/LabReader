@@ -21,7 +21,7 @@ def db2df(path, user_col=[]):
     soilloc = []
     pore = []
     poreloc = []
-    columns = ['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit']
+    columns = ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit']
     columns += user_col
     
     for column in columns:
