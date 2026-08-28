@@ -1,4 +1,4 @@
-('C:\\Users\\ICohen\\Documents\\__LabReader_test\\build\\main\\PYZ-00.pyz',
+('C:\\Users\\ICohen\\Documents\\__LabReader_test\\build\\LabReader\\PYZ-00.pyz',
  [('PySimpleGUI',
    'C:\\Users\\ICohen\\AppData\\Local\\anaconda3\\envs\\excel-click\\lib\\site-packages\\PySimpleGUI\\__init__.py',
    'PYMODULE'),

@@ -2,6 +2,19 @@ import pandas as pd
 from sqlalchemy import Table, create_engine, MetaData, select
 import numpy as np
 
+def clean_database_value(value):
+    if pd.isna(value):
+        return None
+    if isinstance(value, bytes):
+        try:
+            text_value = value.decode('utf-8')
+            if text_value.isprintable():
+                return text_value
+        except UnicodeDecodeError:
+            pass
+        return int.from_bytes(value, byteorder='little')
+    return value
+
 def db2df(path, user_col=[]):
     if path == None or path == '':
         raise Exception("No Database Chosen")
@@ -21,7 +34,7 @@ def db2df(path, user_col=[]):
     soilloc = []
     pore = []
     poreloc = []
-    columns = ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit']
+    columns = ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Sample_Time', 'Result', 'Result_Unit', 'Method_Detection_Limit']
     columns += user_col
     
     for column in columns:
@@ -62,13 +75,7 @@ def db2df(path, user_col=[]):
         con=engine
     )  
     for i in range(0, len(stmt)):
-        row = []
-        for a in range(0, 10):
-            if type(stmt.iloc[i, a]) == np.float64:
-                row.append(float(stmt.iloc[i, a]))
-            else:
-                row.append(stmt.iloc[i, a])
-        gwloc.append(row)
+        gwloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
     for column in columns:
         if column == 'Method_Detection_Limit':
             stmt = pd.read_sql(
@@ -107,13 +114,7 @@ def db2df(path, user_col=[]):
         con=engine
     )
     for i in range(0, len(stmt)):
-        row = []
-        for a in range(0, 10):
-            if type(stmt.iloc[i, a]) == np.float64:
-                row.append(float(stmt.iloc[i, a]))
-            else:
-                row.append(stmt.iloc[i, a])
-        soilloc.append(row)
+        soilloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
     for column in columns:
         if column == 'Method_Detection_Limit':
             stmt = pd.read_sql(
@@ -152,11 +153,5 @@ def db2df(path, user_col=[]):
         con=engine
     )
     for i in range(0, len(stmt)):
-        row = []
-        for a in range(0, 5):
-            if type(stmt.iloc[i, a]) == np.float64:
-                row.append(float(stmt.iloc[i, a]))
-            else:
-                row.append(stmt.iloc[i, a])
-        poreloc.append(row)
+        poreloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
     return gw, gwloc, soil, soilloc, pore, poreloc

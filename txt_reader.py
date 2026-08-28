@@ -14,47 +14,21 @@ from make_db import db_maker
 
 dup_list = []
 
-
-def _safe_popup_value(prompt, default=None, allow_blank=True):
-    default_text = '' if default is None else str(default)
-    value = sg.popup_get_text(prompt, default_text=default_text)
-    if value is None:
-        return default if default is not None else None
-    value = value.strip()
-    if not value and allow_blank:
-        return default if default is not None else None
+def clean_value(value):
+    if pd.isna(value) or value == '':
+        return None
+    if hasattr(value, 'item'):
+        value = value.item()
     return value
 
-
-def _safe_popup_float(prompt, default=None):
-    while True:
-        value = _safe_popup_value(prompt, default=default, allow_blank=True)
-        if value is None or value == '':
-            return None
-        try:
-            return float(value)
-        except ValueError:
-            sg.popup_error(f'{prompt} must be a number. Please try again.')
-
-
-def _safe_popup_s_tail(prompt, default=None):
-    while True:
-        value = _safe_popup_value(prompt, default=default, allow_blank=True)
-        if value is None or value == '':
-            return None
-        normalized = value.strip().upper()
-        if normalized in {'S', 'T'}:
-            return normalized
-        sg.popup_error("Source/Tail must be 'S', 'T', or blank. Please try again.")
-
-
-def tsv_reader(file, db, labtype):
+def tsv_reader(file, db, labtype, samp_file):
     global dup_list
     if db == None or db == '':
         db_path = db_maker(file)
     else:
         db_path = db
-    df = pd.read_csv(file, sep='\t')    
+    df = pd.read_csv(file, sep='\t')
+    df2 = pd.read_csv(samp_file, sep='\t')
 
     engine = create_engine(f'sqlite:///{db_path}')
     metadata_obj = MetaData()
@@ -70,6 +44,24 @@ def tsv_reader(file, db, labtype):
     except ValueError:
         print("Lab Data already in Selected Database")
         return
+    location_count = len(df.loc[:, 'Sampnum'].unique())
+    progress_total = location_count + len(df)
+    progress_value = 0
+    progress_window = sg.Window(
+        'Importing Lab Data',
+        [
+            [sg.Text('Importing lab data...')],
+            [sg.ProgressBar(progress_total, orientation='h', size=(40, 20), key='-IMPORT-PROGRESS-')],
+        ],
+        finalize=True,
+    )
+
+    def update_progress():
+        nonlocal progress_value
+        progress_value += 1
+        progress_window['-IMPORT-PROGRESS-'].update(progress_value)
+        progress_window.read(timeout=0)
+
     with engine.begin() as conn:
         for row in df.loc[:, 'Sampnum'].unique():
             try:
@@ -94,20 +86,17 @@ def tsv_reader(file, db, labtype):
             except exc.IntegrityError:
                 dup_list.append(row)
 
-            xcoord = None #_safe_popup_float(f'Input X Coordinate for {site}:')
-            ycoord = None #_safe_popup_float(f'Input Y Coordinate for {site}:')
-            long = None #_safe_popup_value(f'Input Longitude for {site}:', allow_blank=True)
-            lat = None #_safe_popup_value(f'Input Latitude for {site}:', allow_blank=True)
+            xcoord = None
+            ycoord = None
+            long = None
+            lat = None
 
             if labtype == 'Groundwater':
-                layer = None #_safe_popup_value(f'Input Layer for {site}:', allow_blank=True)
-                s_tail = None #_safe_popup_s_tail(
-                    #f'Input S for Source, or T for Tail (leave blank if not in use) for {site}:',
-                    #default=None,
-                #)
-                sat_thick = None #_safe_popup_float(f'Input Saturated Thickness for {site}:')
-                stunit = None #_safe_popup_value(f'Input units for Saturated Thickness for {site}:', allow_blank=True)
-                porosity = None #_safe_popup_float(f'Input Porosity for {site}:')
+                layer = None
+                s_tail = None
+                sat_thick = None
+                stunit = None
+                porosity = None
                 conn.execute(
                     Update(gw_location_table)
                     .where(gw_location_table.c.Location_Name == site),
@@ -124,11 +113,11 @@ def tsv_reader(file, db, labtype):
                     }
                 )
             elif labtype == 'Soil':
-                thick = None #_safe_popup_float(f'Input Thickness for {site}:')
-                thickunit = None #_safe_popup_value(f'Input units for Thickness for {site}:', allow_blank=True)
-                bulkd = None #_safe_popup_float(f'Input Bulk Density for {site}:')
-                bulkdunit = None #_safe_popup_value(f'Input units for Bulk Density for {site}:', allow_blank=True)
-                perlowk = None #_safe_popup_float(f'Input Percentage Low K for {site}:')
+                thick = None
+                thickunit = None
+                bulkd = None
+                bulkdunit = None
+                perlowk = None
                 conn.execute(
                     Update(soil_location_table)
                     .where(soil_location_table.c.Location_Name == site),
@@ -155,6 +144,7 @@ def tsv_reader(file, db, labtype):
                         'Latitude': lat,
                     }]
                 )
+            update_progress()
         if len(dup_list) != 0:
             print("The following locations already exist in the database: ")
             for item in dup_list:
@@ -201,6 +191,40 @@ def tsv_reader(file, db, labtype):
                         .where(gw_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
                     )
+                for x in range(0, len(df2)):
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot']]
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot)]
+                    time = pd.to_datetime(time).time()
+                    if latdeg is None or latmin is None or latsec is None:
+                        lat = None
+                    else:
+                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
+                    if londeg is None or lonmin is None or lonsec is None:
+                        long = None
+                    else:
+                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    conn.execute(
+                        Update(gw_data).where(gw_data.c.Location_Name == location),
+                        [{'Sample_Time': time}],
+                    )
+                    conn.execute(
+                        Update(gw_location_table).where(gw_location_table.c.Location_Name == location),
+                        [{
+                            'Matrix': matrix,
+                            'Address': fieldid,
+                            'AOC': aocid,
+                            'Latitude': lat,
+                            'Longitude': long,
+                            'X_Coordinate': spx,
+                            'Y_Coordinate': spy,
+                            'Depth_To_Top_Of_Well': depthtop,
+                            'Depth_To_Bottom_Of_Well': depthbot,
+                            'Ground_Elevation': groundel,
+                            'Well_Elevation': wellel,
+                            'Depth_To_Top_Of_Screen': screentop,
+                            'Depth_To_Bottom_Of_Screen': screenbot
+                        }],
+                    )
             elif labtype == 'Soil':
                 conn.execute(
                     Insert(soil_data),
@@ -224,6 +248,34 @@ def tsv_reader(file, db, labtype):
                         Update(soil_data)
                         .where(soil_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
+                    )
+                for x in range(0, len(df2)):
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
+                    time = pd.to_datetime(time).time()
+                    if latdeg is None or latmin is None or latsec is None:
+                        lat = None
+                    else:
+                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
+                    if londeg is None or lonmin is None or lonsec is None:
+                        long = None
+                    else:
+                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    conn.execute(
+                        Update(soil_data).where(gw_data.c.Location_Name == location),
+                        [{'Sample_Time': time}],
+                    )
+                    conn.execute(
+                        Update(soil_location_table).where(gw_location_table.c.Location_Name == location),
+                        [{
+                            'Matrix': matrix,
+                            'Address': fieldid,
+                            'AOC': aocid,
+                            'Latitude': lat,
+                            'Longitude': long,
+                            'X_Coordinate': spx,
+                            'Y_Coordinate': spy
+                        }],
                     )
             elif labtype == 'Porewater':
                 conn.execute(
@@ -249,5 +301,35 @@ def tsv_reader(file, db, labtype):
                         .where(porewater_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
                     )
+                for x in range(0, len(df2)):
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
+                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
+                    time = pd.to_datetime(time).time()
+                    if latdeg is None or latmin is None or latsec is None:
+                        lat = None
+                    else:
+                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
+                    if londeg is None or lonmin is None or lonsec is None:
+                        long = None
+                    else:
+                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    conn.execute(
+                        Update(porewater_data).where(gw_data.c.Location_Name == location),
+                        [{'Sample_Time': time}],
+                    )
+                    conn.execute(
+                        Update(porewater_location_table).where(gw_location_table.c.Location_Name == location),
+                        [{
+                            'Matrix': matrix,
+                            'Address': fieldid,
+                            'AOC': aocid,
+                            'Latitude': lat,
+                            'Longitude': long,
+                            'X_Coordinate': spx,
+                            'Y_Coordinate': spy
+                        }],
+                    )
+            update_progress()
 
+    progress_window.close()
     return

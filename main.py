@@ -12,10 +12,10 @@ layout = [
     [sg.Button(button_text='Exit')]
 ]
 
-header = ['id', 'Location', 'Analyte', 'CASN', 'Sample Date', 'Conc', 'Conc Units', 'MDL']
-headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Layer', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
-headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
-headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude']
+header = ['id', 'Location', 'Analyte', 'CASN', 'Sample Date', 'Sample Time', 'Conc', 'Conc Units', 'MDL']
+headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC', 'Layer', 'Top Well Depth', 'Bottom Well Depth', 'Top Screen Depth', 'Bottom Screen Depth', 'Ground Elevation', 'Well Elevation', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
+headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
+headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC']
 
 rkeys = {'-GW-': 'Groundwater', '-SOIL-': 'Soil', '-PORE-': 'Porewater'}
 
@@ -31,7 +31,13 @@ def make_selection_layout():
 
 window = sg.Window('ESI Database Viewer', layout)
 def dbwindow(dblayout):
-    dbwin = sg.Window('Database', dblayout)
+    screen_width, screen_height = sg.Window.get_screen_size()
+    dbwin = sg.Window(
+        'Database',
+        dblayout,
+        size=(int(screen_width * 0.9), int(screen_height * 0.8)),
+        resizable=True,
+    )
     return dbwin
 
 def values_equal(first, second):
@@ -41,7 +47,7 @@ def values_equal(first, second):
 
 def make_editable_values(rows):
     return [
-        ['' if value is None else value for value in row]
+        ['' if value is None or value != value else value for value in row]
         for row in rows
     ]
 
@@ -59,12 +65,12 @@ def get_table_values(db_path, user_columns):
 
 def make_db_layout(table_values, editable):
     return [[sg.TabGroup([[
-        sg.Tab('Groundwater Data', [[sg.Table(values=table_values['-GWDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWDATA-', enable_cell_editing=editable, enable_events=editable)]]),
-        sg.Tab('Groundwater Locations', [[sg.Table(values=table_values['-GWLOC-'], headings=headergw, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWLOC-', enable_cell_editing=editable, enable_events=editable)]]),
-        sg.Tab('Soil Data', [[sg.Table(values=table_values['-SOILDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILDATA-', enable_cell_editing=editable, enable_events=editable)]]),
-        sg.Tab('Soil Locations', [[sg.Table(values=table_values['-SOILLOC-'], headings=headersoil, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILLOC-', enable_cell_editing=editable, enable_events=editable)]]),
-        sg.Tab('Porewater Data', [[sg.Table(values=table_values['-POREDATA-'], headings=header, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-POREDATA-', enable_cell_editing=editable, enable_events=editable)]]),
-        sg.Tab('Porewater Locations', [[sg.Table(values=table_values['-PORELOC-'], headings=headerpore, expand_x=True, expand_y=True, vertical_scroll_only=False, k='-PORELOC-', enable_cell_editing=editable, enable_events=editable)]])
+        sg.Tab('Groundwater Data', [[sg.Table(values=table_values['-GWDATA-'], headings=header, num_rows=20, auto_size_columns=False, col_widths=[14] * len(header), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Groundwater Locations', [[sg.Table(values=table_values['-GWLOC-'], headings=headergw, num_rows=20, auto_size_columns=False, col_widths=[14] * len(headergw), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-GWLOC-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Soil Data', [[sg.Table(values=table_values['-SOILDATA-'], headings=header, num_rows=20, auto_size_columns=False, col_widths=[14] * len(header), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Soil Locations', [[sg.Table(values=table_values['-SOILLOC-'], headings=headersoil, num_rows=20, auto_size_columns=False, col_widths=[14] * len(headersoil), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILLOC-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Porewater Data', [[sg.Table(values=table_values['-POREDATA-'], headings=header, num_rows=20, auto_size_columns=False, col_widths=[14] * len(header), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-POREDATA-', enable_cell_editing=editable, enable_events=editable)]]),
+        sg.Tab('Porewater Locations', [[sg.Table(values=table_values['-PORELOC-'], headings=headerpore, num_rows=20, auto_size_columns=False, col_widths=[14] * len(headerpore), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-PORELOC-', enable_cell_editing=editable, enable_events=editable)]])
     ]])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable)]]
 
 while True:
@@ -75,10 +81,13 @@ while True:
 
     if event == 'Import Lab Data':
         lab_file = sg.popup_get_file(
-            message='Select Lab File',
+            message='Select EDD hzresult File',
             file_types=((".txt", "*.txt"), (".csv", "*.csv"), ("ALL Files", "*.*"))
         )
         if not lab_file:
+            continue
+        if not lab_file[-12:] == 'hzresult.txt':
+            sg.popup_quick_message('Please Select a hzresult.txt file')
             continue
 
         selection = sg.Window('Lab Selection', make_selection_layout(), modal=True)
@@ -105,11 +114,17 @@ while True:
             continue
 
         if lab_file.lower().endswith('.txt'):
+            while True:
+                sample_file = sg.popup_get_file('Select associated EDD hzsample file', file_types=(('.txt', '*.txt'),))
+                if sample_file[-12:] == 'hzsample.txt':
+                    break
+                else:
+                    sg.popup_quick_message('Please Select a hzsample.txt File')   
             db_path = sg.popup_get_file(
                 message='Select Existing Database\n(or cancel to create a new database)',
                 file_types=(('.db', '*.db'),)
             )
-            tsv_reader(lab_file, db_path, labtype)
+            tsv_reader(lab_file, db_path, labtype, sample_file)
 
     if event == 'View Database':
         db_path = sg.popup_get_file(message='Select Existing Database', file_types=((".db", "*.db"),))
@@ -123,11 +138,11 @@ while True:
                 break
             table_columns = {
                 '-GWDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
-                '-GWLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Layer', 'Source_Tail', 'Saturated_Thickness', 'Units_of_ST', 'Porosity'],
+                '-GWLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC', 'Layer', 'Depth_To_Top_Of_Well', 'Depth_To_Bottom_Of_Well', 'Depth_To_Top_Of_Screen', 'Depth_To_Bottom_Of_Screen', 'Ground_Elevation', 'Well_Elevation', 'Source_Tail', 'Saturated_Thickness', 'Units_of_ST', 'Porosity'],
                 '-SOILDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
-                '-SOILLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Thickness', 'Units_of_Thickness', 'Bulk_Density', 'Units_of_Bulk_Density', 'Percent_Low_K'],
+                '-SOILLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC', 'Thickness', 'Units_of_Thickness', 'Bulk_Density', 'Units_of_Bulk_Density', 'Percent_Low_K'],
                 '-POREDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
-                '-PORELOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude'],
+                '-PORELOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC'],
             }
             original_table_values = {
                 table_key: [row.copy() for row in rows]
