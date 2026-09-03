@@ -11,8 +11,7 @@ from sqlalchemy import (
     Update
 )
 from make_db import db_maker
-
-dup_list = []
+from type_selection import matrixselection
 
 def clean_value(value):
     if pd.isna(value) or value == '':
@@ -21,14 +20,122 @@ def clean_value(value):
         value = value.item()
     return value
 
-def tsv_reader(file, db, labtype, samp_file):
-    global dup_list
+def findlabtype(df):
+    dict = {}
+    loclist = []
+    for location in df.loc[:, 'Sampnum'].unique():
+        loclist.append(location)
+    recognized_matrices = {
+        'groundwater': 'Groundwater',
+        'ground water': 'Groundwater',
+        'soil': 'Soil',
+        'porewater': 'Porewater',
+        'pore water': 'Porewater',
+    }
+    matrix_values = df.loc[:, 'Matrix'].unique()
+    invalid_matrix_found = any(
+        not isinstance(matrix, str) or matrix.strip().lower() not in recognized_matrices
+        for matrix in matrix_values
+    )
+    if not invalid_matrix_found:
+        normalized_matrices = {
+            location: recognized_matrices[matrix.strip().lower()]
+            for location, matrix in zip(df['Sampnum'], df['Matrix'])
+        }
+        unique_matrices = set(normalized_matrices.values())
+        if len(unique_matrices) == 1:
+            return 1, unique_matrices.pop()
+        return 2, normalized_matrices
+
+    layout = [
+        [sg.Text('Please select Groundwater sites')],
+        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-GWSEL-')],
+        [sg.Button('Confirm Selection')]
+    ]
+    layout2 = [
+        [sg.Text('Please select Soil sites')],
+        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-SOILSEL-')],
+        [sg.Button('Confirm Selection')]
+    ]
+    layout3 = [
+        [sg.Text('Please select Porewater sites')],
+        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-PORESEL-')],
+        [sg.Button('Confirm Selection')]
+    ]
+    matrix = matrixselection()
+    if matrix == 'Mixed':
+        gwwin = sg.Window('Groundwater sites', layout, enable_close_attempted_event=True)
+        while True:
+            gwevent, gwvalues = gwwin.read()
+
+            if gwevent == 'Confirm Selection':
+                gw = gwvalues['-GWSEL-']
+                for location in gw:
+                    dict[location] = 'Groundwater'
+                    loclist.remove(location)
+                gwwin.close()
+                break
+            if gwevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
+                sg.popup_quick_message('Please Select Groundwater Locations')
+                continue
+
+        soilwin = sg.Window('Soil sites', layout2, enable_close_attempted_event=True)
+        if len(loclist) <= 0:
+            return 2, dict
+
+        while True:
+            soilevent, soilvalues = soilwin.read()
+
+            if soilevent == 'Confirm Selection':
+                soil = soilvalues['-SOILSEL-']
+                for location in soil:
+                    dict[location] = 'Soil'
+                    loclist.remove(location)
+                soilwin.close()
+                break
+            if soilevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
+                sg.popup_quick_message('Please Select Soil Locations')
+                continue
+
+        if len(loclist) <= 0:
+            return 2, dict
+
+        porewin = sg.Window('Porewater sites', layout3, enable_close_attempted_event=True)
+        while True:
+            poreevent, porevalues = porewin.read()
+
+            if poreevent == 'Confirm Selection':
+                pore = porevalues['-PORESEL-']
+                for location in pore:
+                    dict[location] = 'Porewater'
+                    loclist.remove(location)
+                porewin.close()
+                break
+            if poreevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
+                sg.popup_quick_message('Please Select Porewater Locations')
+                continue
+
+        return 2, dict
+    return 1, matrix
+
+def tsv_reader(file, db, samp_file):
+    dup_list = []
     if db == None or db == '':
         db_path = db_maker(file)
     else:
         db_path = db
-    df = pd.read_csv(file, sep='\t')
-    df2 = pd.read_csv(samp_file, sep='\t')
+    df = pd.read_csv(file, sep='\t') #read hzresult file
+    df2 = pd.read_csv(samp_file, sep='\t') #read hzsample file
+    v, m = findlabtype(df2)
+    df2['Matrix'] = df2['Matrix'].astype(object)
+    if v == 1:
+        for x in range(0, len(df2)):
+            df2.at[x, 'Matrix'] = m
+    elif v == 2:
+        for key in m.keys():
+            df2.loc[df2['Sampnum'] == key, 'Matrix'] = m[key]
+    mapping = df2.set_index('Sampnum')['Matrix']
+    df['Matrix'] = df['Sampnum'].map(mapping)
 
     engine = create_engine(f'sqlite:///{db_path}')
     metadata_obj = MetaData()
@@ -39,10 +146,17 @@ def tsv_reader(file, db, labtype, samp_file):
     soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
     porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
+
+    location_tables = {
+        'Groundwater': gw_location_table,
+        'Soil': soil_location_table,
+        'Porewater': porewater_location_table,
+    }
+
     try:
         df.to_sql(name=f"{df.at[0, 'QAQC']}", con=engine)
     except ValueError:
-        print("Lab Data already in Selected Database")
+        sg.popup_quick_message('Lab Data already in Selected Database')
         return
     location_count = len(df.loc[:, 'Sampnum'].unique())
     progress_total = location_count + len(df)
@@ -64,6 +178,7 @@ def tsv_reader(file, db, labtype, samp_file):
 
     with engine.begin() as conn:
         for row in df.loc[:, 'Sampnum'].unique():
+            labtype = mapping.get(row)
             try:
                 sampdate = pd.to_datetime(df.loc[df['Sampnum'] == row, 'Sampdate'].iloc[0])
             except IndexError:
@@ -80,11 +195,12 @@ def tsv_reader(file, db, labtype, samp_file):
                     site = row
             try:
                 conn.execute(
-                    Insert(gw_location_table),
+                    Insert(location_tables[labtype]),
                     [{"Location_Name": site}],
                 )
             except exc.IntegrityError:
                 dup_list.append(row)
+                continue
 
             xcoord = None
             ycoord = None
@@ -146,10 +262,14 @@ def tsv_reader(file, db, labtype, samp_file):
                 )
             update_progress()
         if len(dup_list) != 0:
-            print("The following locations already exist in the database: ")
+            dup_layout = [[sg.Text('The following locations already exist in the database: ')]]
             for item in dup_list:
-                print(item)
+                dup_layout.append([sg.Text(f'{item}')])
+            dup_win = sg.Window('Duplicate Locations', layout=dup_layout, auto_close=True, auto_close_duration=5)
+            dup_win.read()
         for x in range(0, len(df)):
+            result_sampnum = df.loc[x, 'Sampnum']
+            labtype = clean_value(df.loc[x, 'Matrix'])
             location, analyte_name, casn, date, result, res_unit, mdl, flag = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual']]
             date = pd.to_datetime(date)
             if isinstance(location, str) and len(location) >= 5 and location[-5] == '-' and location[-4:].isdigit():
@@ -191,7 +311,7 @@ def tsv_reader(file, db, labtype, samp_file):
                         .where(gw_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
                     )
-                for x in range(0, len(df2)):
+                for x in df2.index[df2['Sampnum'] == result_sampnum]:
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot']]
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot)]
                     time = pd.to_datetime(time).time()
@@ -249,7 +369,7 @@ def tsv_reader(file, db, labtype, samp_file):
                         .where(soil_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
                     )
-                for x in range(0, len(df2)):
+                for x in df2.index[df2['Sampnum'] == result_sampnum]:
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
                     time = pd.to_datetime(time).time()
@@ -262,11 +382,11 @@ def tsv_reader(file, db, labtype, samp_file):
                     else:
                         long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
                     conn.execute(
-                        Update(soil_data).where(gw_data.c.Location_Name == location),
+                        Update(soil_data).where(soil_data.c.Location_Name == location),
                         [{'Sample_Time': time}],
                     )
                     conn.execute(
-                        Update(soil_location_table).where(gw_location_table.c.Location_Name == location),
+                        Update(soil_location_table).where(soil_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
                             'Address': fieldid,
@@ -301,7 +421,7 @@ def tsv_reader(file, db, labtype, samp_file):
                         .where(porewater_data.c.Analyte == analyte_name),
                         [{'Chem_Group': 'TOT'},],
                     )
-                for x in range(0, len(df2)):
+                for x in df2.index[df2['Sampnum'] == result_sampnum]:
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
                     location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
                     time = pd.to_datetime(time).time()
@@ -314,11 +434,11 @@ def tsv_reader(file, db, labtype, samp_file):
                     else:
                         long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
                     conn.execute(
-                        Update(porewater_data).where(gw_data.c.Location_Name == location),
+                        Update(porewater_data).where(porewater_data.c.Location_Name == location),
                         [{'Sample_Time': time}],
                     )
                     conn.execute(
-                        Update(porewater_location_table).where(gw_location_table.c.Location_Name == location),
+                        Update(porewater_location_table).where(porewater_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
                             'Address': fieldid,

@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import PySimpleGUI as sg
+import os
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -18,9 +19,11 @@ from sqlalchemy import (
 
 def db_maker(file):
     df = pd.read_csv(file, sep='\t')
+    db_default_save = os.path.dirname(os.path.abspath(__file__))
+    db_default_save += '\\Databases'
 
     db_name = df.iloc[0, 0] + '.db'
-    db_dir = sg.popup_get_folder('Select Database Save Folder')
+    db_dir = sg.popup_get_folder('Select Database Save Folder', initial_folder=db_default_save)
     db_dir = Path(db_dir)
     db_dir.mkdir(parents=True, exist_ok=True)
     db_path = db_dir / db_name

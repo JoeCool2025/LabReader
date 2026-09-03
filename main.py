@@ -2,6 +2,7 @@ import PySimpleGUI as sg
 from txt_reader import tsv_reader
 from db_viewer import db2df
 from db_editor import parseedit
+import os
 
 view_options = ['Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
 layout = [
@@ -18,6 +19,10 @@ headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude
 headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude', 'Matrix', 'Address', 'AOC']
 
 rkeys = {'-GW-': 'Groundwater', '-SOIL-': 'Soil', '-PORE-': 'Porewater'}
+
+db_default_save = os.path.dirname(os.path.abspath(__file__))
+db_default_save += '\\Databases'
+last_file_folder = None
 
 def make_selection_layout():
     return [
@@ -82,52 +87,40 @@ while True:
     if event == 'Import Lab Data':
         lab_file = sg.popup_get_file(
             message='Select EDD hzresult File',
-            file_types=((".txt", "*.txt"), (".csv", "*.csv"), ("ALL Files", "*.*"))
+            file_types=((".txt", "*.txt"), (".csv", "*.csv"), ("ALL Files", "*.*")),
+            initial_folder=last_file_folder
         )
         if not lab_file:
             continue
         if not lab_file[-12:] == 'hzresult.txt':
             sg.popup_quick_message('Please Select a hzresult.txt file')
             continue
-
-        selection = sg.Window('Lab Selection', make_selection_layout(), modal=True)
-        labtype = None
-
-        while True:
-            e1, v1 = selection.read()
-            if e1 in (sg.WIN_CLOSED, 'Cancel'):
-                labtype = None
-                break
-
-            if e1 in rkeys:
-                selection['-SELECT-'].update(disabled=False)
-
-            if e1 == '-SELECT-':
-                selected_keys = [key for key in rkeys if v1.get(key)]
-                if selected_keys:
-                    labtype = rkeys[selected_keys[0]]
-                    break
-
-        selection.close()
-
-        if labtype is None:
-            continue
+        last_file_folder = lab_file[:-13]
 
         if lab_file.lower().endswith('.txt'):
             while True:
-                sample_file = sg.popup_get_file('Select associated EDD hzsample file', file_types=(('.txt', '*.txt'),))
-                if sample_file[-12:] == 'hzsample.txt':
-                    break
+                sample_file = sg.popup_get_file(
+                    'Select associated EDD hzsample file',
+                    file_types=(('.txt', '*.txt'),)
+                )
+                if sample_file == None or not sample_file[-12:] == 'hzsample.txt':
+                    sg.popup_quick_message('Please Select a hzsample.txt File')
+                    continue
                 else:
-                    sg.popup_quick_message('Please Select a hzsample.txt File')   
+                    break  
             db_path = sg.popup_get_file(
                 message='Select Existing Database\n(or cancel to create a new database)',
-                file_types=(('.db', '*.db'),)
+                file_types=(('.db', '*.db'),),
+                initial_folder=db_default_save
             )
-            tsv_reader(lab_file, db_path, labtype, sample_file)
+            tsv_reader(lab_file, db_path, sample_file)
 
     if event == 'View Database':
-        db_path = sg.popup_get_file(message='Select Existing Database', file_types=((".db", "*.db"),))
+        db_path = sg.popup_get_file(
+            message='Select Existing Database',
+            file_types=((".db", "*.db"),),
+            initial_folder=db_default_save
+        )
         if db_path != None and db_path != '':
             user_columns = values['-OPTCOLUMNS-']
             header += user_columns
