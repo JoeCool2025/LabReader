@@ -3,6 +3,7 @@ from txt_reader import tsv_reader
 from db_viewer import db2df
 from db_editor import parseedit
 import os
+from export import export
 
 view_options = ['Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
 layout = [
@@ -21,6 +22,14 @@ headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Longitude', 'Latitude
 rkeys = {'-GW-': 'Groundwater', '-SOIL-': 'Soil', '-PORE-': 'Porewater'}
 
 db_default_save = os.path.dirname(os.path.abspath(__file__))
+file_split = db_default_save.split('\\')
+x = 0
+for dir in file_split:
+    if '__LabReader' in dir and x != len(file_split)-1:   
+        file_split = file_split[:x+1]
+        break
+    x += 1
+db_default_save = '\\'.join(file_split)
 db_default_save += '\\Databases'
 last_file_folder = None
 
@@ -76,7 +85,7 @@ def make_db_layout(table_values, editable):
         sg.Tab('Soil Locations', [[sg.Table(values=table_values['-SOILLOC-'], headings=headersoil, num_rows=20, auto_size_columns=False, col_widths=[14] * len(headersoil), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-SOILLOC-', enable_cell_editing=editable, enable_events=editable)]]),
         sg.Tab('Porewater Data', [[sg.Table(values=table_values['-POREDATA-'], headings=header, num_rows=20, auto_size_columns=False, col_widths=[14] * len(header), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-POREDATA-', enable_cell_editing=editable, enable_events=editable)]]),
         sg.Tab('Porewater Locations', [[sg.Table(values=table_values['-PORELOC-'], headings=headerpore, num_rows=20, auto_size_columns=False, col_widths=[14] * len(headerpore), expand_x=True, expand_y=True, vertical_scroll_only=False, k='-PORELOC-', enable_cell_editing=editable, enable_events=editable)]])
-    ]])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable)]]
+    ]])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable), sg.Button('Export', disabled=editable)]]
 
 while True:
     event, values = window.read()
@@ -181,8 +190,12 @@ while True:
                 if e2 == 'Save':
                     if not edits:
                         sg.popup('No edits to save')
-                        continue
-                    parseedit(edits, db_path)
+                    else:
+                        parseedit(edits, db_path)
+                        edit_toggle = False
                     dbwin.close()
                     table_values = get_table_values(db_path, user_columns)
                     dbwin = dbwindow(make_db_layout(table_values, edit_toggle))
+
+                if e2 == 'Export':
+                    export(db_path, user_columns)

@@ -20,6 +20,18 @@ def clean_value(value):
         value = value.item()
     return value
 
+def address_layout(old, new):
+    return [
+        [
+            sg.Radio(f'{old}', group_id='group2', key='-OLD-', enable_events=True),
+            sg.Radio(f'{new}', group_id='group2', key='-NEW-', enable_events=True)
+        ],
+        [sg.Button('Select', key='-SELECT-', disabled=True)]
+    ]
+
+def address_standardization():
+    pass
+
 def findlabtype(df):
     dict = {}
     loclist = []
@@ -119,7 +131,6 @@ def findlabtype(df):
     return 1, matrix
 
 def tsv_reader(file, db, samp_file):
-    dup_list = []
     if db == None or db == '':
         db_path = db_maker(file)
     else:
@@ -199,13 +210,10 @@ def tsv_reader(file, db, samp_file):
                     [{"Location_Name": site}],
                 )
             except exc.IntegrityError:
-                dup_list.append(row)
                 continue
 
             xcoord = None
             ycoord = None
-            long = None
-            lat = None
 
             if labtype == 'Groundwater':
                 layer = None
@@ -219,8 +227,6 @@ def tsv_reader(file, db, samp_file):
                     {
                         'X_Coordinate': xcoord,
                         'Y_Coordinate': ycoord,
-                        'Longitude': long,
-                        'Latitude': lat,
                         'Layer': layer,
                         'Source_Tail': s_tail,
                         'Saturated_Thickness': sat_thick,
@@ -240,8 +246,6 @@ def tsv_reader(file, db, samp_file):
                     [{
                         'X_Coordinate': xcoord,
                         'Y_Coordinate': ycoord,
-                        'Longitude': long,
-                        'Latitude': lat,
                         'Thickness': thick,
                         'Units_of_Thickness': thickunit,
                         'Bulk_Density': bulkd,
@@ -256,17 +260,10 @@ def tsv_reader(file, db, samp_file):
                     [{
                         'X_Coordinate': xcoord,
                         'Y_Coordinate': ycoord,
-                        'Longitude': long,
-                        'Latitude': lat,
                     }]
                 )
             update_progress()
-        if len(dup_list) != 0:
-            dup_layout = [[sg.Text('The following locations already exist in the database: ')]]
-            for item in dup_list:
-                dup_layout.append([sg.Text(f'{item}')])
-            dup_win = sg.Window('Duplicate Locations', layout=dup_layout, auto_close=True, auto_close_duration=5)
-            dup_win.read()
+
         for x in range(0, len(df)):
             result_sampnum = df.loc[x, 'Sampnum']
             labtype = clean_value(df.loc[x, 'Matrix'])
@@ -312,17 +309,39 @@ def tsv_reader(file, db, samp_file):
                         [{'Chem_Group': 'TOT'},],
                     )
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot']]
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot)]
+                    location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot']]
+                    location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot)]
                     time = pd.to_datetime(time).time()
-                    if latdeg is None or latmin is None or latsec is None:
-                        lat = None
-                    else:
-                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
-                    if londeg is None or lonmin is None or lonsec is None:
-                        long = None
-                    else:
-                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    try:
+                        address = pd.read_sql(
+                            'SELECT fieldid FROM gw_results LIMIT 1'
+                        )
+                        if address != fieldid:
+                            address_correction = sg.Window('Address Standardization', address_layout(address, fieldid), modal=True)
+                            while True:
+                                e, v = address_correction.read()
+                                if e == sg.WINDOW_CLOSED:
+                                    try:
+                                        address_correction.close()
+                                    except:
+                                        continue
+                                    break
+                                if e in ('-OLD-', '-NEW-'):
+                                    address_correction['-SELECT-'].update(disabled=False)
+                                if e == '-SELECT-':
+                                    if e == '-NEW-':
+                                        conn.execute(
+                                            Update(gw_location_table).where(gw_location_table.c.Address == address),
+                                            [{'Address': fieldid}]
+                                        )
+                                    elif e == '-OLD-':
+                                        fieldid = address
+                                    else:
+                                        continue
+                                    address_correction.close()
+                                    break
+                    except:
+                        pass
                     conn.execute(
                         Update(gw_data).where(gw_data.c.Location_Name == location),
                         [{'Sample_Time': time}],
@@ -333,8 +352,6 @@ def tsv_reader(file, db, samp_file):
                             'Matrix': matrix,
                             'Address': fieldid,
                             'AOC': aocid,
-                            'Latitude': lat,
-                            'Longitude': long,
                             'X_Coordinate': spx,
                             'Y_Coordinate': spy,
                             'Depth_To_Top_Of_Well': depthtop,
@@ -370,17 +387,39 @@ def tsv_reader(file, db, samp_file):
                         [{'Chem_Group': 'TOT'},],
                     )
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
+                    location, time, matrix, fieldid, aocid, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y']]
+                    location, time, matrix, fieldid, aocid, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy)]
                     time = pd.to_datetime(time).time()
-                    if latdeg is None or latmin is None or latsec is None:
-                        lat = None
-                    else:
-                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
-                    if londeg is None or lonmin is None or lonsec is None:
-                        long = None
-                    else:
-                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    try:
+                        address = pd.read_sql(
+                            'SELECT fieldid FROM soil_results LIMIT 1'
+                        )
+                        if address != fieldid:
+                            address_correction = sg.Window('Address Standardization', address_layout(address, fieldid), modal=True)
+                            while True:
+                                e, v = address_correction.read()
+                                if e == sg.WINDOW_CLOSED:
+                                    try:
+                                        address_correction.close()
+                                    except:
+                                        continue
+                                    break
+                                if e in ('-OLD-', '-NEW-'):
+                                    address_correction['-SELECT-'].update(disabled=False)
+                                if e == '-SELECT-':
+                                    if e == '-NEW-':
+                                        conn.execute(
+                                            Update(soil_location_table).where(soil_location_table.c.Address == address),
+                                            [{'Address': fieldid}]
+                                        )
+                                    elif e == '-OLD-':
+                                        fieldid = address
+                                    else:
+                                        continue
+                                    address_correction.close()
+                                    break
+                    except:
+                        pass
                     conn.execute(
                         Update(soil_data).where(soil_data.c.Location_Name == location),
                         [{'Sample_Time': time}],
@@ -391,8 +430,6 @@ def tsv_reader(file, db, samp_file):
                             'Matrix': matrix,
                             'Address': fieldid,
                             'AOC': aocid,
-                            'Latitude': lat,
-                            'Longitude': long,
                             'X_Coordinate': spx,
                             'Y_Coordinate': spy
                         }],
@@ -422,17 +459,39 @@ def tsv_reader(file, db, samp_file):
                         [{'Chem_Group': 'TOT'},],
                     )
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Lat_degree', 'Lat_minute', 'Lat_second', 'Lon_degree', 'Lon_minute', 'Lon_second', 'Sp_x', 'Sp_y']]
-                    location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, latdeg, latmin, latsec, londeg, lonmin, lonsec, spx, spy)]
+                    location, time, matrix, fieldid, aocid, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y']]
+                    location, time, matrix, fieldid, aocid, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy)]
                     time = pd.to_datetime(time).time()
-                    if latdeg is None or latmin is None or latsec is None:
-                        lat = None
-                    else:
-                        lat = f'{latdeg}\u00b0 {latmin}\u2032 {latsec}\u2033'
-                    if londeg is None or lonmin is None or lonsec is None:
-                        long = None
-                    else:
-                        long = f'{londeg}\u00b0 {lonmin}\u2032 {lonsec}\u2033'
+                    try:
+                        address = pd.read_sql(
+                            'SELECT fieldid FROM porewater_results LIMIT 1'
+                        )
+                        if address != fieldid:
+                            address_correction = sg.Window('Address Standardization', address_layout(address, fieldid), modal=True)
+                            while True:
+                                e, v = address_correction.read()
+                                if e == sg.WINDOW_CLOSED:
+                                    try:
+                                        address_correction.close()
+                                    except:
+                                        continue
+                                    break
+                                if e in ('-OLD-', '-NEW-'):
+                                    address_correction['-SELECT-'].update(disabled=False)
+                                if e == '-SELECT-':
+                                    if e == '-NEW-':
+                                        conn.execute(
+                                            Update(porewater_location_table).where(porewater_location_table.c.Address == address),
+                                            [{'Address': fieldid}]
+                                        )
+                                    elif e == '-OLD-':
+                                        fieldid = address
+                                    else:
+                                        continue
+                                    address_correction.close()
+                                    break
+                    except:
+                        pass
                     conn.execute(
                         Update(porewater_data).where(porewater_data.c.Location_Name == location),
                         [{'Sample_Time': time}],
@@ -443,8 +502,6 @@ def tsv_reader(file, db, samp_file):
                             'Matrix': matrix,
                             'Address': fieldid,
                             'AOC': aocid,
-                            'Latitude': lat,
-                            'Longitude': long,
                             'X_Coordinate': spx,
                             'Y_Coordinate': spy
                         }],

@@ -10,7 +10,7 @@ def make_selection_layout():
             sg.Radio('Porewater', group_id='group1', key='-PORE-', enable_events=True),
             sg.Radio('Mixed', group_id='group1', key='-MIX-', enable_events=True),
         ],
-        [sg.Button(button_text='Select', key='-SELECT-', disabled=True)],
+        [sg.Button('Select', key='-SELECT-', disabled=True)],
     ]
 
 

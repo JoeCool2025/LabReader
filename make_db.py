@@ -20,6 +20,14 @@ from sqlalchemy import (
 def db_maker(file):
     df = pd.read_csv(file, sep='\t')
     db_default_save = os.path.dirname(os.path.abspath(__file__))
+    file_split = db_default_save.split('\\')
+    x = 0
+    for dir in file_split:
+        if '__LabReader' in dir and x != len(file_split)-1:   
+            file_split = file_split[:x+1]
+            break
+        x += 1
+    db_default_save = '\\'.join(file_split)
     db_default_save += '\\Databases'
 
     db_name = df.iloc[0, 0] + '.db'
@@ -36,8 +44,6 @@ def db_maker(file):
         Column('Location_Name', String, primary_key=True),
         Column('X_Coordinate', Float),
         Column('Y_Coordinate', Float),
-        Column('Longitude', String),
-        Column('Latitude', String),
         Column('Matrix', String),
         Column('Address', String),
         Column('AOC', String),
@@ -80,8 +86,6 @@ def db_maker(file):
         Column('Location_Name', String, primary_key=True),
         Column('X_Coordinate', Float),
         Column('Y_Coordinate', Float),
-        Column('Longitude', String),
-        Column('Latitude', String),
         Column('Matrix', String),
         Column('Address', String),
         Column('AOC', String),
@@ -118,8 +122,6 @@ def db_maker(file):
         Column('Location_Name', String, primary_key=True),
         Column('X_Coordinate', Float),
         Column('Y_Coordinate', Float),
-        Column('Longitude', String),
-        Column('Latitude', String),
         Column('Matrix', String),
         Column('Address', String),
         Column('AOC', String),
