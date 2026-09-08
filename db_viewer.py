@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import Table, create_engine, MetaData, select
+from sqlalchemy import Table, create_engine, MetaData, select, inspect
 import numpy as np
 
 def clean_database_value(value):
@@ -27,6 +27,7 @@ def db2df(path, user_col=[]):
     soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
     porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
+    database_inspector = inspect(engine)
 
     gw = []
     gwloc = []
@@ -34,6 +35,8 @@ def db2df(path, user_col=[]):
     soilloc = []
     pore = []
     poreloc = []
+    other = []
+    otherloc = []
     columns = ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Sample_Time', 'Result', 'Result_Unit', 'Method_Detection_Limit']
     columns += user_col
     
@@ -154,4 +157,29 @@ def db2df(path, user_col=[]):
     )
     for i in range(0, len(stmt)):
         poreloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
-    return gw, gwloc, soil, soilloc, pore, poreloc
+    if database_inspector.has_table('other_results'):
+        for column in columns:
+            selected_column = 'Method_Detection_Limit' if column == 'Method_Detection_Limit' else column
+            alias = 'MDL' if column == 'Method_Detection_Limit' else column
+            stmt = pd.read_sql(
+                f"SELECT {selected_column} AS {alias} FROM other_results "
+                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
+                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
+                con=engine
+            )
+            for i in range(0, len(stmt)):
+                value = clean_database_value(stmt.iloc[i, 0])
+                try:
+                    other[i].append(value)
+                except IndexError:
+                    other.append([value])
+    if database_inspector.has_table('other_locations'):
+        stmt = pd.read_sql(
+            "SELECT * FROM other_locations "
+            "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
+            "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
+            con=engine
+        )
+        for i in range(0, len(stmt)):
+            otherloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
+    return gw, gwloc, soil, soilloc, pore, poreloc, other, otherloc

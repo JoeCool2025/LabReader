@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import Table, create_engine, MetaData, select
+from sqlalchemy import Table, create_engine, MetaData, select, inspect
 import numpy as np
 import PySimpleGUI as sg
 
@@ -26,6 +26,7 @@ def export(path, user_col=[]):
     soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
     porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
+    database_inspector = inspect(engine)
 
     gw = []
     gwloc = []
@@ -33,6 +34,8 @@ def export(path, user_col=[]):
     soilloc = []
     pore = []
     poreloc = []
+    other = []
+    otherloc = []
     columns = ['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Sample_Time', 'Result', 'Result_Unit', 'Method_Detection_Limit']
     columns += user_col
     
@@ -153,18 +156,55 @@ def export(path, user_col=[]):
     )
     for i in range(0, len(stmt)):
         poreloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
+    if database_inspector.has_table('other_results'):
+        for column in columns:
+            selected_column = 'Method_Detection_Limit' if column == 'Method_Detection_Limit' else column
+            alias = 'MDL' if column == 'Method_Detection_Limit' else column
+            stmt = pd.read_sql(
+                f"SELECT {selected_column} AS {alias} FROM other_results "
+                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
+                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
+                con=engine
+            )
+            for i in range(0, len(stmt)):
+                value = clean_database_value(stmt.iloc[i, 0])
+                try:
+                    other[i].append(value)
+                except IndexError:
+                    other.append([value])
+    if database_inspector.has_table('other_locations'):
+        stmt = pd.read_sql(
+            "SELECT * FROM other_locations "
+            "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
+            "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
+            con=engine
+        )
+        for i in range(0, len(stmt)):
+            otherloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
     gwdf = pd.DataFrame(gw, columns=columns)
     gwlocdf = pd.DataFrame(gwloc, columns=gw_location_table.c.keys())
     soildf = pd.DataFrame(soil, columns=columns)
     soillocdf = pd.DataFrame(soilloc, columns=soil_location_table.c.keys())
     poredf = pd.DataFrame(pore, columns=columns)
     porelocdf = pd.DataFrame(poreloc, columns=porewater_location_table.c.keys())
+    otherdf = pd.DataFrame(other, columns=columns)
+    otherloc_columns = ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC']
+    otherlocdf = pd.DataFrame(otherloc, columns=otherloc_columns)
     saveloc = sg.popup_get_file('Save As', default_extension='.xlsx', save_as=True, file_types=(('.xlsx', '*.xlsx'),))
+    if not saveloc:
+        return
     with pd.ExcelWriter(saveloc) as writer:
-        gwdf.to_excel(writer, sheet_name='Groundwater Data')
-        gwlocdf.to_excel(writer, sheet_name='Groundwater Locations')
-        soildf.to_excel(writer, sheet_name='Soil Data')
-        soillocdf.to_excel(writer, sheet_name='Soil Locations')
-        poredf.to_excel(writer, sheet_name='Porewater Data')
-        porelocdf.to_excel(writer, sheet_name='Porewater Locations')
+        sheets = {
+            'Groundwater Data': gwdf,
+            'Groundwater Locations': gwlocdf,
+            'Soil Data': soildf,
+            'Soil Locations': soillocdf,
+            'Porewater Data': poredf,
+            'Porewater Locations': porelocdf,
+            'Other Data': otherdf,
+            'Other Locations': otherlocdf,
+        }
+        for sheet_name, dataframe in sheets.items():
+            if not dataframe.empty:
+                dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
     return

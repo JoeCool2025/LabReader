@@ -37,6 +37,8 @@ def parseedit(edits, db_path):
     soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
     porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
+    other_location_table = Table('other_locations', metadata_obj, autoload_with=engine)
+    other_data = Table('other_results', metadata_obj, autoload_with=engine)
 
     edit_dict = {}
     for e in edits:
@@ -52,55 +54,11 @@ def parseedit(edits, db_path):
             edit_dict[porewater_data] = {int(e["row"]): {e["col"]: e["value"]}}
         elif e["table"] == '-PORELOC-':
             edit_dict[porewater_location_table] = {e["row"]: {e["col"]: e["value"]}}
+        elif e["table"] == '-OTHERDATA-':
+            edit_dict[other_data] = {int(e["row"]): {e["col"]: e["value"]}}
+        elif e["table"] == '-OTHERLOC-':
+            edit_dict[other_location_table] = {(e["row"]): {e["col"]: e["value"]}}
         else:
             sg.popup_quick_message(f'{e["table"]} not recognized as valid table name')
 
     dbedit(engine, edit_dict)
-
-def main():
-    db_path = sg.popup_get_file('select database')
-    engine = create_engine(f'sqlite:///{db_path}')
-    #engine = create_engine('sqlite:///:memory:')
-    metadata_obj = MetaData()
-    metadata_obj.create_all(engine)
-    gw_location_table = Table('gw_locations', metadata_obj, autoload_with=engine)
-    gw_data = Table('gw_results', metadata_obj, autoload_with=engine)
-    soil_location_table = Table('soil_locations', metadata_obj, autoload_with=engine)
-    soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
-    porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
-    porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
-
-    test_db_update = {
-        gw_data: {
-            4: {
-                'Location_Name': 'MW1RS',
-                'Analyte': 'BENZENE', #BENZENE
-                'CASN': '100-10-1111' #'71-43-2'
-                },
-            8: {
-                'Location_Name': 'MW1RS',
-                'Analyte': 'CHLOROFORM', #CHLOROFORM
-                'CASN': '101-23-2323' #'67-66-3'
-                },
-            84: {
-                'Location_Name': 'MW1RSR',
-                'Analyte': 'BENZENE', #BENZENE
-                'CASN': '100-10-1111' #'71-43-2'
-                }
-        },
-        gw_location_table: {
-            'alpha': {
-                'X_Coordinate': 2.34,
-                'Y_Coordinate': 3.45
-            },
-            'beta': {
-                'X_Coordinate': 9.78,
-                'Y_Coordinate': 7.65
-            }
-        }}
-    #print(test_db_update)
-    dbedit(engine, test_db_update)
-
-if __name__ == '__main__':
-    #main()
-    pass
