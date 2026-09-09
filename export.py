@@ -16,7 +16,7 @@ def clean_database_value(value):
         return int.from_bytes(value, byteorder='little')
     return value
 
-def export(path, user_col=[]):
+def export(path):
     engine = create_engine(f'sqlite:///{path}')
     metadata_obj = MetaData()
     metadata_obj.create_all(engine)
@@ -36,8 +36,22 @@ def export(path, user_col=[]):
     poreloc = []
     other = []
     otherloc = []
-    columns = ['Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Sample_Time', 'Result', 'Result_Unit', 'Method_Detection_Limit']
-    columns += user_col
+    columns = [
+        'Location_Name',
+        'Analyte',
+        'CASN',
+        'Sample_Date',
+        'Sample_Time',
+        'Result',
+        'Result_Unit',
+        'Method_Detection_Limit',
+        'Flag',
+        'Detect',
+        'Trace',
+        'Duplicate',
+        'Exclude',
+        'Chem_Group'
+    ]
     
     for column in columns:
         if column == 'Method_Detection_Limit':

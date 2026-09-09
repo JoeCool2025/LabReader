@@ -1,20 +1,13 @@
 import PySimpleGUI as sg
-from txt_reader import tsv_reader
-from db_viewer import db2df
-from db_editor import parseedit
 import os
-from export import export
 
-view_options = ['Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
 layout = [
     [sg.Button(button_text='View Database'), sg.Button(button_text='Import Lab Data'), sg.Checkbox('Mass Upload', key='-MULTI-', tooltip='Upload a folder with multiple EDD directories')],
-    [sg.Text('Select Optional Data Columns to View')],
-    [sg.Listbox(values=view_options, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20, 6), key='-OPTCOLUMNS-')],
     [sg.HorizontalSeparator(thickness=4)],
     [sg.Button(button_text='Exit')]
 ]
 
-header = ['id', 'Location', 'Analyte', 'CASN', 'Sample Date', 'Sample Time', 'Conc', 'Conc Units', 'MDL']
+header = ['Location', 'Analyte', 'CASN', 'Sample Date', 'Sample Time', 'Conc', 'Conc Units', 'MDL', 'Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
 headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Layer', 'Top Well Depth', 'Bottom Well Depth', 'Top Screen Depth', 'Bottom Screen Depth', 'Ground Elevation', 'Well Elevation', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
 headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
 headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC']
@@ -67,8 +60,10 @@ def make_editable_values(rows):
         for row in rows
     ]
 
-def get_table_values(db_path, user_columns):
-    df_gw, gwloc, df_soil, soilloc, df_pore, poreloc, df_other, otherloc = db2df(db_path, user_columns)
+def get_table_values(db_path):
+    from db_viewer import db2df
+
+    df_gw, gwloc, df_soil, soilloc, df_pore, poreloc, df_other, otherloc = db2df(db_path)
     table_values = {
                     '-GWDATA-': make_editable_values(df_gw),
                     '-GWLOC-': make_editable_values(gwloc),
@@ -121,6 +116,8 @@ while True:
         break
 
     if event == 'Import Lab Data':
+        from txt_reader import tsv_reader
+
         if values['-MULTI-']:
             lab_folder = sg.popup_get_folder(message='Select mass upload folder')
             db_path = sg.popup_get_file(
@@ -195,21 +192,19 @@ while True:
         )
         prev_db = db_path
         if db_path != None and db_path != '':
-            user_columns = values['-OPTCOLUMNS-']
-            header += user_columns
             try:
-                table_values = get_table_values(db_path, user_columns)
+                table_values = get_table_values(db_path)
             except Exception as e:
                 print(e)
                 break
             table_columns = {
-                '-GWDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-GWDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
                 '-GWLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC', 'Layer', 'Depth_To_Top_Of_Well', 'Depth_To_Bottom_Of_Well', 'Depth_To_Top_Of_Screen', 'Depth_To_Bottom_Of_Screen', 'Ground_Elevation', 'Well_Elevation', 'Source_Tail', 'Saturated_Thickness', 'Units_of_ST', 'Porosity'],
-                '-SOILDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-SOILDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
                 '-SOILLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC', 'Thickness', 'Units_of_Thickness', 'Bulk_Density', 'Units_of_Bulk_Density', 'Percent_Low_K'],
-                '-POREDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-POREDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
                 '-PORELOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC'],
-                '-OTHERDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'] + user_columns,
+                '-OTHERDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
                 '-OTHERLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC'],
             }
             original_table_values = {
@@ -234,13 +229,13 @@ while True:
                 if e2 == 'Edit':
                     edit_toggle = True
                     dbwin.close()
-                    dbwin = dbwindow(make_db_layout(get_table_values(db_path, user_columns), edit_toggle))
+                    dbwin = dbwindow(make_db_layout(get_table_values(db_path), edit_toggle))
 
                 if e2 == 'Cancel':
                     edit_toggle = False
                     edits.clear()
                     dbwin.close()
-                    dbwin = dbwindow(make_db_layout(get_table_values(db_path, user_columns), edit_toggle))
+                    dbwin = dbwindow(make_db_layout(get_table_values(db_path), edit_toggle))
 
                 if edited_table is not None and edited_cell is not None:
                     table = dbwin[edited_table]
@@ -257,11 +252,15 @@ while True:
                     if not edits:
                         sg.popup('No edits to save')
                     else:
+                        from db_editor import parseedit
+
                         parseedit(edits, db_path)
                         edit_toggle = False
                     dbwin.close()
-                    table_values = get_table_values(db_path, user_columns)
+                    table_values = get_table_values(db_path)
                     dbwin = dbwindow(make_db_layout(table_values, edit_toggle))
 
                 if e2 == 'Export':
-                    export(db_path, user_columns)
+                    from export import export
+
+                    export(db_path)

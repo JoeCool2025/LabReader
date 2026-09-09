@@ -73,7 +73,7 @@
  [],
  False,
  False,
- 1788959998,
+ 1788972896,
  [('run.exe',
    'C:\\Users\\ICohen\\AppData\\Local\\anaconda3\\envs\\excel-click\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\run.exe',
    'EXECUTABLE')],
