@@ -9,7 +9,8 @@ from sqlalchemy import (
     select,
     create_engine,
     exc,
-    Update
+    Update,
+    text
 )
 from make_db import db_maker
 from type_selection import matrixselection
@@ -31,44 +32,47 @@ def address_layout(old, new):
     ]
 
 def standardize_address(conn, location_table, site, fieldid, address_cache):
-    cache_key = (location_table.name, site)
-    if cache_key in address_cache:
-        return address_cache[cache_key]
+    metadata_obj = MetaData()
+    gw_location_table = Table('gw_locations', metadata_obj, autoload_with=conn)
+    soil_location_table = Table('soil_locations', metadata_obj, autoload_with=conn)
+    porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=conn)
+    other_location_table = Table('other_locations', metadata_obj, autoload_with=conn)
+    table_list = [gw_location_table, soil_location_table, porewater_location_table, other_location_table]
+    options = []
 
-    existing_address = conn.execute(
-        select(location_table.c.Address).where(
-            location_table.c.Location_Name == site
-        )
-    ).scalar_one_or_none()
-    if existing_address is None or existing_address == fieldid:
-        address_cache[cache_key] = fieldid
+    for table in table_list:
+        result = conn.execute(text(f'SELECT DISTINCT Address from {table.name}'))
+        for row in result:
+            if row.Address not in options:
+                options.append(row.Address)
+
+    if fieldid in options or options == []:
         return fieldid
-
+    if fieldid in address_cache:
+        return address_cache[fieldid]
     address_correction = sg.Window(
         'Address Standardization',
-        address_layout(existing_address, fieldid),
+        address_layout(options[0], fieldid),
         modal=True,
     )
     try:
         while True:
             event, values = address_correction.read()
             if event in (sg.WINDOW_CLOSED, sg.WIN_CLOSED):
-                address_cache[cache_key] = existing_address
-                return existing_address
+                return options[0]
             if event in ('-OLD-', '-NEW-'):
                 address_correction['-SELECT-'].update(disabled=False)
             if event == '-SELECT-':
                 if values.get('-NEW-'):
-                    conn.execute(
-                        Update(location_table).where(
-                            location_table.c.Location_Name == site
-                        ),
-                        [{'Address': fieldid}],
-                    )
-                    address_cache[cache_key] = fieldid
+                    for table in table_list:
+                        conn.execute(
+                            Update(table),
+                            [{'Address': fieldid}],
+                        )
+                    address_cache[fieldid] = fieldid
                     return fieldid
-                address_cache[cache_key] = existing_address
-                return existing_address
+                address_cache[fieldid] = options[0]
+                return options[0]
     finally:
         address_correction.close()
 
@@ -170,77 +174,11 @@ def findlabtype(df):
             return 1, unique_matrices.pop()
         return 2, normalized_matrices
 
-    layout = [
-        [sg.Text('Please select Groundwater sites')],
-        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-GWSEL-')],
-        [sg.Button('Confirm Selection')]
-    ]
-    layout2 = [
-        [sg.Text('Please select Soil sites')],
-        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-SOILSEL-')],
-        [sg.Button('Confirm Selection')]
-    ]
-    layout3 = [
-        [sg.Text('Please select Porewater sites')],
-        [sg.Listbox(values=loclist, select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, expand_x=True, size=(20,6), key='-PORESEL-')],
-        [sg.Button('Confirm Selection')]
-    ]
     layout4 = [
-        [sg.Text('Please input remaining Matrices')]
+        [sg.Text('Please input Matrices')]
     ]
     matrix = matrixselection(qaqc)
     if matrix == 'Mixed':
-        gwwin = sg.Window('Groundwater sites', layout, enable_close_attempted_event=True)
-        while True:
-            gwevent, gwvalues = gwwin.read()
-
-            if gwevent == 'Confirm Selection':
-                gw = gwvalues['-GWSEL-']
-                for location in gw:
-                    dict[location] = 'Groundwater'
-                    loclist.remove(location)
-                gwwin.close()
-                break
-            if gwevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
-                sg.popup_quick_message('Please Select Groundwater Locations')
-                continue
-
-        soilwin = sg.Window('Soil sites', layout2, enable_close_attempted_event=True)
-        if len(loclist) <= 0:
-            return 2, dict
-
-        while True:
-            soilevent, soilvalues = soilwin.read()
-
-            if soilevent == 'Confirm Selection':
-                soil = soilvalues['-SOILSEL-']
-                for location in soil:
-                    dict[location] = 'Soil'
-                    loclist.remove(location)
-                soilwin.close()
-                break
-            if soilevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
-                sg.popup_quick_message('Please Select Soil Locations')
-                continue
-
-        if len(loclist) <= 0:
-            return 2, dict
-
-        porewin = sg.Window('Porewater sites', layout3, enable_close_attempted_event=True)
-        while True:
-            poreevent, porevalues = porewin.read()
-
-            if poreevent == 'Confirm Selection':
-                pore = porevalues['-PORESEL-']
-                for location in pore:
-                    dict[location] = 'Porewater'
-                    loclist.remove(location)
-                porewin.close()
-                break
-            if poreevent == sg.WIN_CLOSE_ATTEMPTED_EVENT:
-                sg.popup_quick_message('Please Select Porewater Locations')
-                continue
-
         if len(loclist) <= 0:
             return 2, dict
         
@@ -366,7 +304,6 @@ def _import_tsv(file, db, samp_file, df, df2):
             sg.popup_quick_message('Lab Data already in Selected Database')
             return
 
-        checkaddress = address_table[df2.at[0, 'Matrix']] if df2.at[0, 'Matrix'] in address_table else "other"
         # First create one location row for every unique sample location.
         for row in df.loc[:, 'Sampnum'].unique():
             labtype = mapping.get(row)
@@ -383,10 +320,13 @@ def _import_tsv(file, db, samp_file, df, df2):
             except exc.IntegrityError:
                 continue
             except KeyError:
-                conn.execute(
-                    Insert(other_location_table),
-                    [{'Location_Name': site}]
-                )
+                try:
+                    conn.execute(
+                        Insert(other_location_table),
+                        [{'Location_Name': site}]
+                    )
+                except exc.IntegrityError:
+                    continue
 
             xcoord = None
             ycoord = None
