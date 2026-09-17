@@ -306,7 +306,9 @@ def _import_tsv(file, db, samp_file, df, df2):
 
         # First create one location row for every unique sample location.
         for row in df.loc[:, 'Sampnum'].unique():
-            labtype = mapping.get(row)
+            labtype = clean_value(
+                df.loc[df['Sampnum'] == row, 'Matrix'].iloc[0]
+            )
             try:
                 sampdate = pd.to_datetime(df.loc[df['Sampnum'] == row, 'Sampdate'].iloc[0])
             except IndexError:
@@ -393,7 +395,8 @@ def _import_tsv(file, db, samp_file, df, df2):
         for x in range(0, len(df)):
             result_sampnum = df.loc[x, 'Sampnum']
             labtype = clean_value(df.loc[x, 'Matrix'])
-            location, analyte_name, casn, date, result, res_unit, mdl, flag = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual']]
+            location, analyte_name, casn, date, result, res_unit, mdl, flag, labid, labname, filtun, analmeth = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual', 'Labid', 'Labname', 'Filtunfilt', 'Anlys_mthd']]
+            analdate = pd.to_datetime(df.loc[x, 'Tdanalyz'])
             date = pd.to_datetime(date)
             site = make_site_name(location, date)
             result_record = make_result_record(
@@ -402,19 +405,30 @@ def _import_tsv(file, db, samp_file, df, df2):
             if labtype == 'Groundwater':
                 insert_result(conn, gw_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot']]
-                    location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot)]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth)]
+                    dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
                     fieldid = standardize_address(conn, gw_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(gw_data).where(gw_data.c.Location_Name == location),
-                        [{'Sample_Time': time}],
+                        [{
+                            'Sample_Time': time,
+                            'SRPID': srpid,
+                            'Lab_ID': labid,
+                            'Analysis_Date': analdate,
+                            'Lab_Name': labname,
+                            'Filt_Unfilt': filtun,
+                            'Analysis_Method': analmeth
+                        }],
                     )
                     conn.execute(
                         Update(gw_location_table).where(gw_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
+                            'SRPID': srpid,
+                            'Consultant': None,
                             'Address': fieldid,
                             'AOC': aocid,
                             'X_Coordinate': spx,
@@ -424,73 +438,114 @@ def _import_tsv(file, db, samp_file, df, df2):
                             'Ground_Elevation': groundel,
                             'Well_Elevation': wellel,
                             'Depth_To_Top_Of_Screen': screentop,
-                            'Depth_To_Bottom_Of_Screen': screenbot
+                            'Depth_To_Bottom_Of_Screen': screenbot,
+                            'Date_to_Lab': dtlab,
+                            'Sample_Method': sampmeth,
                         }],
                     )
             elif labtype == 'Soil':
                 insert_result(conn, soil_data, result_record, mark_non_total_as_total=True)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y']]
-                    location, time, matrix, fieldid, aocid, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy)]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
+                    dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
                     fieldid = standardize_address(conn, soil_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(soil_data).where(soil_data.c.Location_Name == location),
-                        [{'Sample_Time': time}],
+                        [{
+                            'Sample_Time': time,
+                            'SRPID': srpid,
+                            'Lab_ID': labid,
+                            'Analysis_Date': analdate,
+                            'Lab_Name': labname,
+                            'Filt_Unfilt': filtun,
+                            'Analysis_Method': analmeth
+                        }],
                     )
                     conn.execute(
                         Update(soil_location_table).where(soil_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
+                            'SRPID': srpid,
+                            'Consultant': None,
                             'Address': fieldid,
                             'AOC': aocid,
                             'X_Coordinate': spx,
-                            'Y_Coordinate': spy
+                            'Y_Coordinate': spy,
+                            'Date_to_Lab': dtlab,
+                            'Sample_Method': sampmeth,
                         }],
                     )
             elif labtype == 'Porewater':
                 insert_result(conn, porewater_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y']]
-                    location, time, matrix, fieldid, aocid, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy)]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
+                    dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
                     fieldid = standardize_address(conn, porewater_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(porewater_data).where(porewater_data.c.Location_Name == location),
-                        [{'Sample_Time': time}],
+                        [{
+                            'Sample_Time': time,
+                            'SRPID': srpid,
+                            'Lab_ID': labid,
+                            'Analysis_Date': analdate,
+                            'Lab_Name': labname,
+                            'Filt_Unfilt': filtun,
+                            'Analysis_Method': analmeth
+                        }],
                     )
                     conn.execute(
                         Update(porewater_location_table).where(porewater_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
+                            'SRPID': srpid,
+                            'Consultant': None,
                             'Address': fieldid,
                             'AOC': aocid,
                             'X_Coordinate': spx,
-                            'Y_Coordinate': spy
+                            'Y_Coordinate': spy,
+                            'Date_to_Lab': dtlab,
+                            'Sample_Method': sampmeth,
                         }],
                     )
             else:
                 insert_result(conn, other_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    location, time, matrix, fieldid, aocid, spx, spy = df2.loc[x, ['Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y']]
-                    location, time, matrix, fieldid, aocid, spx, spy = [clean_value(value) for value in (location, time, matrix, fieldid, aocid, spx, spy)]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
+                    dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
                     fieldid = standardize_address(conn, other_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(other_data).where(other_data.c.Location_Name == location),
-                        [{'Sample_Time': time}],
+                        [{
+                            'Sample_Time': time,
+                            'SRPID': srpid,
+                            'Lab_ID': labid,
+                            'Analysis_Date': analdate,
+                            'Lab_Name': labname,
+                            'Filt_Unfilt': filtun,
+                            'Analysis_Method': analmeth
+                        }],
                     )
                     conn.execute(
                         Update(other_location_table).where(other_location_table.c.Location_Name == location),
                         [{
                             'Matrix': matrix,
+                            'SRPID': srpid,
+                            'Consultant': None,
                             'Address': fieldid,
                             'AOC': aocid,
                             'X_Coordinate': spx,
-                            'Y_Coordinate': spy
+                            'Y_Coordinate': spy,
+                            'Date_to_Lab': dtlab,
+                            'Sample_Method': sampmeth,
                         }],
                     )
             update_progress()

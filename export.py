@@ -2,6 +2,7 @@ import pandas as pd
 from sqlalchemy import Table, create_engine, MetaData, select, inspect
 import numpy as np
 import PySimpleGUI as sg
+from col_select import col_choose
 
 def clean_database_value(value):
     if pd.isna(value):
@@ -16,7 +17,7 @@ def clean_database_value(value):
         return int.from_bytes(value, byteorder='little')
     return value
 
-def export(path):
+def export(path, selected_columns=None, mode=None):
     engine = create_engine(f'sqlite:///{path}')
     metadata_obj = MetaData()
     metadata_obj.create_all(engine)
@@ -26,199 +27,224 @@ def export(path):
     soil_data = Table('soil_results', metadata_obj, autoload_with=engine)
     porewater_location_table = Table('porewater_locations', metadata_obj, autoload_with=engine)
     porewater_data = Table('porewater_results', metadata_obj, autoload_with=engine)
-    database_inspector = inspect(engine)
+    other_location_table = Table('other_locations', metadata_obj, autoload_with=engine)
+    other_data = Table('other_results', metadata_obj, autoload_with=engine)
+    saveloc = sg.popup_get_file('Save As', default_extension='.xlsx', save_as=True, file_types=(('.xlsx', '*.xlsx'),))
 
-    gw = []
-    gwloc = []
-    soil = []
-    soilloc = []
-    pore = []
-    poreloc = []
-    other = []
-    otherloc = []
-    columns = [
-        'Location_Name',
-        'Analyte',
-        'CASN',
-        'Sample_Date',
-        'Sample_Time',
-        'Result',
-        'Result_Unit',
-        'Method_Detection_Limit',
-        'Flag',
-        'Detect',
-        'Trace',
-        'Duplicate',
-        'Exclude',
-        'Chem_Group'
-    ]
-    
-    for column in columns:
-        if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql(
-                "SELECT Method_Detection_Limit AS MDL FROM gw_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name, '-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_NAME, '-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        else:
-            stmt = pd.read_sql(
-                f"SELECT {column} FROM gw_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        for i in range(0, len(stmt)):
-            if type(stmt.iloc[i, 0]) == np.float64:
-                try:
-                    gw[i].append(float(stmt.iloc[i, 0]))
-                except:
-                    gw.append([float(stmt.iloc[i, 0])])
-            elif type(stmt.iloc[i, 0]) == np.integer:
-                try:
-                    gw[i].append(int(stmt.iloc[i, 0]))
-                except:
-                    gw.append([int(stmt.iloc[i, 0])])
-            else:
-                try:
-                    gw[i].append(stmt.iloc[i, 0])
-                except:
-                    gw.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql(
-        "SELECT * FROM gw_locations "
-        "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-        "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
-        con=engine
-    )  
-    for i in range(0, len(stmt)):
-        gwloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
-    for column in columns:
-        if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql(
-                "SELECT Method_Detection_Limit AS MDL FROM soil_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name, '-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name, '-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        else:
-            stmt = pd.read_sql(
-                f"SELECT {column} FROM soil_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        for i in range(0, len(stmt)):
-            if type(stmt.iloc[i, 0]) == np.float64:
-                try:
-                    soil[i].append(float(stmt.iloc[i, 0]))
-                except:
-                    soil.append([float(stmt.iloc[i, 0])])
-            elif type(stmt.iloc[i, 0]) == np.integer:
-                try:
-                    soil[i].append(int(stmt.iloc[i, 0]))
-                except:
-                    soil.append([int(stmt.iloc[i, 0])])
-            else:
-                try:
-                    soil[i].append(stmt.iloc[i, 0])
-                except:
-                    soil.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql(
-        "SELECT * FROM soil_locations "
-        "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-        "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
-        con=engine
-    )
-    for i in range(0, len(stmt)):
-        soilloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
-    for column in columns:
-        if column == 'Method_Detection_Limit':
-            stmt = pd.read_sql(
-                "SELECT Method_Detection_Limit AS MDL FROM porewater_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name, '-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name, '-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        else:
-            stmt = pd.read_sql(
-                f"SELECT {column} FROM porewater_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-        for i in range(0, len(stmt)):
-            if type(stmt.iloc[i, 0]) == np.float64:
-                try:
-                    pore[i].append(float(stmt.iloc[i, 0]))
-                except:
-                    pore.append([float(stmt.iloc[i, 0])])
-            elif type(stmt.iloc[i, 0]) == np.integer:
-                try:
-                    pore[i].append(int(stmt.iloc[i, 0]))
-                except:
-                    pore.append([int(stmt.iloc[i, 0])])
-            else:
-                try:
-                    pore[i].append(stmt.iloc[i, 0])
-                except:
-                    pore.append([stmt.iloc[i, 0]])
-    stmt = pd.read_sql(
-        "SELECT * FROM porewater_locations "
-        "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-        "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
-        con=engine
-    )
-    for i in range(0, len(stmt)):
-        poreloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
-    if database_inspector.has_table('other_results'):
+    if selected_columns is None or mode is None:
+        columns = set()
+        for table in (
+            gw_data,
+            gw_location_table,
+            soil_data,
+            soil_location_table,
+            porewater_data,
+            porewater_location_table,
+            other_data,
+            other_location_table,
+        ):
+            columns.update(table.c.keys())
+        columns, mode = col_choose(list(columns))
+    else:
+        columns = selected_columns
+
+    if mode == 'Separate':
+        string = ''
         for column in columns:
-            selected_column = 'Method_Detection_Limit' if column == 'Method_Detection_Limit' else column
-            alias = 'MDL' if column == 'Method_Detection_Limit' else column
-            stmt = pd.read_sql(
-                f"SELECT {selected_column} AS {alias} FROM other_results "
-                "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-                "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name, id",
-                con=engine
-            )
-            for i in range(0, len(stmt)):
-                value = clean_database_value(stmt.iloc[i, 0])
-                try:
-                    other[i].append(value)
-                except IndexError:
-                    other.append([value])
-    if database_inspector.has_table('other_locations'):
-        stmt = pd.read_sql(
-            "SELECT * FROM other_locations "
-            "ORDER BY CASE WHEN INSTR(Location_Name,'-')>0 "
-            "THEN CAST(SUBSTR(Location_Name, INSTR(Location_Name,'-')+1) AS INTEGER) END, Location_Name",
+            if column in gw_data.c.keys():
+                if column == 'Method_Detection_Limit':
+                    string += f'{column} AS MDL, '
+                else:
+                    string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        gwr = pd.read_sql(
+            f'SELECT {string} FROM gw_results ',
             con=engine
         )
-        for i in range(0, len(stmt)):
-            otherloc.append([clean_database_value(value) for value in stmt.iloc[i].tolist()])
-    gwdf = pd.DataFrame(gw, columns=columns)
-    gwlocdf = pd.DataFrame(gwloc, columns=gw_location_table.c.keys())
-    soildf = pd.DataFrame(soil, columns=columns)
-    soillocdf = pd.DataFrame(soilloc, columns=soil_location_table.c.keys())
-    poredf = pd.DataFrame(pore, columns=columns)
-    porelocdf = pd.DataFrame(poreloc, columns=porewater_location_table.c.keys())
-    otherdf = pd.DataFrame(other, columns=columns)
-    otherloc_columns = ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC']
-    otherlocdf = pd.DataFrame(otherloc, columns=otherloc_columns)
-    saveloc = sg.popup_get_file('Save As', default_extension='.xlsx', save_as=True, file_types=(('.xlsx', '*.xlsx'),))
-    if not saveloc:
-        return
-    with pd.ExcelWriter(saveloc) as writer:
-        sheets = {
-            'Groundwater Data': gwdf,
-            'Groundwater Locations': gwlocdf,
-            'Soil Data': soildf,
-            'Soil Locations': soillocdf,
-            'Porewater Data': poredf,
-            'Porewater Locations': porelocdf,
-            'Other Data': otherdf,
-            'Other Locations': otherlocdf,
-        }
-        for sheet_name, dataframe in sheets.items():
-            if not dataframe.empty:
-                dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+        string = ''
+        for column in columns:
+            if column in gw_location_table.c.keys():
+                string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        gwloc = pd.read_sql(
+            f'SELECT {string} FROM gw_locations ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in soil_data.c.keys():
+                if column == 'Method_Detection_Limit':
+                    string += f'{column} AS MDL, '
+                else:
+                    string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        soilr = pd.read_sql(
+            f'SELECT {string} FROM soil_results ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in soil_location_table.c.keys():
+                string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        soilloc = pd.read_sql(
+            f'SELECT {string} FROM soil_locations ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in porewater_data.c.keys():
+                if column == 'Method_Detection_Limit':
+                    string += f'{column} AS MDL, '
+                else:
+                    string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        porer = pd.read_sql(
+            f'SELECT {string} FROM porewater_results ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in porewater_location_table.c.keys():
+                string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        poreloc = pd.read_sql(
+            f'SELECT {string} FROM porewater_locations ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in other_data.c.keys():
+                if column == 'Method_Detection_Limit':
+                    string += f'{column} AS MDL, '
+                else:
+                    string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        otherr = pd.read_sql(
+            f'SELECT {string} FROM other_results ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in other_location_table.c.keys():
+                string += f'{column}, '
+            else:
+                continue
+        string = string[:-2]
+        otherloc = pd.read_sql(
+            f'SELECT {string} FROM other_locations ',
+            con=engine
+        )
+        with pd.ExcelWriter(saveloc) as writer:
+            sheets = {
+                'Groundwater Data': gwr,
+                'Groundwater Locations': gwloc,
+                'Soil Data': soilr,
+                'Soil Locations': soilloc,
+                'Porewater Data': porer,
+                'Porewater Locations': poreloc,
+                'Other Data': otherr,
+                'Other Locations': otherloc
+            }
+            for sheet_name, dataframe in sheets.items():
+                if not dataframe.empty:
+                    dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
+    else:
+        string = ''
+        for column in columns:
+            if column in gw_data.c.keys():
+                tab = 'gw_results'
+            elif column in gw_location_table.c.keys():
+                tab = 'gw_locations'
+            else:
+                continue
+            if column == 'Method_Detection_Limit':
+                string += f'{tab}.{column} AS MDL, '
+            else:
+                string += f'{tab}.{column}, '
+        string = string[:-2]
+        gw = pd.read_sql(
+            f'SELECT {string} FROM gw_results '
+            'FULL JOIN gw_locations ON gw_results.Location_Name = gw_locations.Location_Name ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in soil_data.c.keys():
+                tab = 'soil_results'
+            elif column in soil_location_table.c.keys():
+                tab = 'soil_locations'
+            else:
+                continue
+            if column == 'Method_Detection_Limit':
+                string += f'{tab}.{column} AS MDL, '
+            else:
+                string += f'{tab}.{column}, '
+        string = string[:-2]
+        soil = pd.read_sql(
+            f'SELECT {string} FROM soil_results '
+            'FULL JOIN soil_locations ON soil_results.Location_Name = soil_locations.Location_Name ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in porewater_data.c.keys():
+                tab = 'porewater_results'
+            elif column in porewater_location_table.c.keys():
+                tab = 'porewater_locations'
+            else:
+                continue
+            if column == 'Method_Detection_Limit':
+                string += f'{tab}.{column} AS MDL, '
+            else:
+                string += f'{tab}.{column}, '
+        string = string[:-2]
+        pore = pd.read_sql(
+            f'SELECT {string} FROM porewater_results '
+            'FULL JOIN porewater_locations ON porewater_results.Location_Name = porewater_locations.Location_Name ',
+            con=engine
+        )
+        string = ''
+        for column in columns:
+            if column in other_data.c.keys():
+                tab = 'other_results'
+            elif column in other_location_table.c.keys():
+                tab = 'other_locations'
+            else:
+                continue
+            if column == 'Method_Detection_Limit':
+                string += f'{tab}.{column} AS MDL, '
+            else:
+                string += f'{tab}.{column}, '
+        string = string[:-2]
+        other = pd.read_sql(
+            f'SELECT {string} FROM other_results '
+            'FULL JOIN other_locations ON other_results.Location_Name = other_locations.Location_Name ',
+            con=engine
+        )
+
+        with pd.ExcelWriter(saveloc) as writer:
+            sheets = {
+                'Groundwater Data': gw,
+                'Soil Data': soil,
+                'Porewater Data': pore,
+                'Other Data': other,
+            }
+            for sheet_name, dataframe in sheets.items():
+                if not dataframe.empty:
+                    dataframe.to_excel(writer, sheet_name=sheet_name, index=False)
     return

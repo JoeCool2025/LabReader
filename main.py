@@ -60,10 +60,10 @@ def make_editable_values(rows):
         for row in rows
     ]
 
-def get_table_values(db_path):
+def get_table_values(db_path, selected_columns=None, mode=None):
     from db_viewer import db2df
 
-    df_gw, gwloc, df_soil, soilloc, df_pore, poreloc, df_other, otherloc = db2df(db_path)
+    df_gw, gwloc, df_soil, soilloc, df_pore, poreloc, df_other, otherloc, table_columns, selected_columns, mode = db2df(db_path, selected_columns, mode)
     table_values = {
                     '-GWDATA-': make_editable_values(df_gw),
                     '-GWLOC-': make_editable_values(gwloc),
@@ -74,28 +74,28 @@ def get_table_values(db_path):
                     '-OTHERDATA-': make_editable_values(df_other),
                     '-OTHERLOC-': make_editable_values(otherloc),
                 }
-    return table_values
+    return table_values, table_columns, selected_columns, mode
 
-def make_db_layout(table_values, editable):
+def make_db_layout(table_values, table_columns, editable):
     table_definitions = [
-        ('-GWDATA-', 'Groundwater Data', header),
-        ('-GWLOC-', 'Groundwater Locations', headergw),
-        ('-SOILDATA-', 'Soil Data', header),
-        ('-SOILLOC-', 'Soil Locations', headersoil),
-        ('-POREDATA-', 'Porewater Data', header),
-        ('-PORELOC-', 'Porewater Locations', headerpore),
-        ('-OTHERDATA-', 'Other Data', header),
-        ('-OTHERLOC-', 'Other Locations', headerother),
+        ('-GWDATA-', 'Groundwater Data'),
+        ('-GWLOC-', 'Groundwater Locations'),
+        ('-SOILDATA-', 'Soil Data'),
+        ('-SOILLOC-', 'Soil Locations'),
+        ('-POREDATA-', 'Porewater Data'),
+        ('-PORELOC-', 'Porewater Locations'),
+        ('-OTHERDATA-', 'Other Data'),
+        ('-OTHERLOC-', 'Other Locations'),
     ]
     tabs = [
         sg.Tab(
             tab_title,
             [[sg.Table(
                 values=table_values[table_key],
-                headings=headings,
+                headings=table_columns[table_key],
                 num_rows=20,
                 auto_size_columns=False,
-                col_widths=[14] * len(headings),
+                col_widths=[14] * len(table_columns[table_key]),
                 expand_x=True,
                 expand_y=True,
                 vertical_scroll_only=False,
@@ -104,7 +104,7 @@ def make_db_layout(table_values, editable):
                 enable_events=editable,
             )]],
         )
-        for table_key, tab_title, headings in table_definitions
+        for table_key, tab_title in table_definitions
         if table_values[table_key]
     ]
     return [[sg.TabGroup([tabs])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable), sg.Button('Export', disabled=editable)]]
@@ -193,26 +193,16 @@ while True:
         prev_db = db_path
         if db_path != None and db_path != '':
             try:
-                table_values = get_table_values(db_path)
+                table_values, table_columns, selected_columns, mode = get_table_values(db_path)
             except Exception as e:
                 print(e)
                 break
-            table_columns = {
-                '-GWDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
-                '-GWLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC', 'Layer', 'Depth_To_Top_Of_Well', 'Depth_To_Bottom_Of_Well', 'Depth_To_Top_Of_Screen', 'Depth_To_Bottom_Of_Screen', 'Ground_Elevation', 'Well_Elevation', 'Source_Tail', 'Saturated_Thickness', 'Units_of_ST', 'Porosity'],
-                '-SOILDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
-                '-SOILLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC', 'Thickness', 'Units_of_Thickness', 'Bulk_Density', 'Units_of_Bulk_Density', 'Percent_Low_K'],
-                '-POREDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
-                '-PORELOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC'],
-                '-OTHERDATA-': ['id', 'Location_Name', 'Analyte', 'CASN', 'Sample_Date', 'Result', 'Result_Unit', 'Method_Detection_Limit'],
-                '-OTHERLOC-': ['Location_Name', 'X_Coordinate', 'Y_Coordinate', 'Matrix', 'Address', 'AOC'],
-            }
             original_table_values = {
                 table_key: [row.copy() for row in rows]
                 for table_key, rows in table_values.items()
             }
             edit_toggle = False
-            dbwin = dbwindow(make_db_layout(table_values, edit_toggle))
+            dbwin = dbwindow(make_db_layout(table_values, table_columns, edit_toggle))
             edits = []
             while True:
                 e2, v2 = dbwin.read()
@@ -229,13 +219,15 @@ while True:
                 if e2 == 'Edit':
                     edit_toggle = True
                     dbwin.close()
-                    dbwin = dbwindow(make_db_layout(get_table_values(db_path), edit_toggle))
+                    table_values, table_columns, selected_columns, mode = get_table_values(db_path, selected_columns, mode)
+                    dbwin = dbwindow(make_db_layout(table_values, table_columns, edit_toggle))
 
                 if e2 == 'Cancel':
                     edit_toggle = False
                     edits.clear()
                     dbwin.close()
-                    dbwin = dbwindow(make_db_layout(get_table_values(db_path), edit_toggle))
+                    table_values, table_columns, selected_columns, mode = get_table_values(db_path, selected_columns, mode)
+                    dbwin = dbwindow(make_db_layout(table_values, table_columns, edit_toggle))
 
                 if edited_table is not None and edited_cell is not None:
                     table = dbwin[edited_table]
@@ -245,6 +237,8 @@ while True:
                         new_val = current_values[row_idx][col_idx]
                         row_key = current_values[row_idx][0]
                         col_key = table_columns[edited_table][col_idx]
+                        if col_key == 'MDL':
+                            col_key = 'Method_Detection_Limit'
                         edits.append({"table": edited_table, "row": row_key, "col": col_key, "value": new_val})
                         table_values[edited_table] = [row.copy() for row in current_values]
 
@@ -257,10 +251,10 @@ while True:
                         parseedit(edits, db_path)
                         edit_toggle = False
                     dbwin.close()
-                    table_values = get_table_values(db_path)
-                    dbwin = dbwindow(make_db_layout(table_values, edit_toggle))
+                    table_values, table_columns, selected_columns, mode = get_table_values(db_path, selected_columns, mode)
+                    dbwin = dbwindow(make_db_layout(table_values, table_columns, edit_toggle))
 
                 if e2 == 'Export':
                     from export import export
 
-                    export(db_path)
+                    export(db_path, selected_columns, mode)
