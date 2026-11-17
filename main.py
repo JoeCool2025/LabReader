@@ -2,14 +2,25 @@ import PySimpleGUI as sg
 import os
 
 layout = [
-    [sg.Button(button_text='View Database'), sg.Button(button_text='Import Lab Data'), sg.Checkbox('Mass Upload', key='-MULTI-', tooltip='Upload a folder with multiple EDD directories')],
+    [sg.Button(button_text='View Database'), sg.Button(button_text='Import Lab Data'),
+      sg.Checkbox('Mass Upload', key='-MULTI-', tooltip='Upload a folder with multiple EDD directories')],
     [sg.HorizontalSeparator(thickness=4)],
     [sg.Button(button_text='Exit')]
 ]
 
-header = ['Location', 'Analyte', 'CASN', 'Sample Date', 'Sample Time', 'Conc', 'Conc Units', 'MDL', 'Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group']
-headergw = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Layer', 'Top Well Depth', 'Bottom Well Depth', 'Top Screen Depth', 'Bottom Screen Depth', 'Ground Elevation', 'Well Elevation', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity']
-headersoil = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Thickness', 'Thickness Units', 'Bulk Density', 'BD Units', '% Low K']
+header = [
+    'Location', 'Analyte', 'CASN', 'Sample Date', 'Sample Time', 'Conc', 'Conc Units',
+    'MDL', 'Flag', 'Detect', 'Trace', 'Duplicate', 'Exclude', 'Chem_Group'
+    ]
+headergw = [
+    'Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Layer',
+    'Top Well Depth', 'Bottom Well Depth', 'Top Screen Depth', 'Bottom Screen Depth',
+    'Ground Elevation', 'Well Elevation', 'Source\\Tail', 'Saturated Thickness', 'ST Units', 'Porosity'
+    ]
+headersoil = [
+    'Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC', 'Thickness',
+    'Thickness Units', 'Bulk Density', 'BD Units', '% Low K'
+    ]
 headerpore = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC']
 headerother = ['Location', 'X Coordinate', 'Y Coordinate', 'Matrix', 'Address', 'AOC']
 
@@ -107,7 +118,8 @@ def make_db_layout(table_values, table_columns, editable):
         for table_key, tab_title in table_definitions
         if table_values[table_key]
     ]
-    return [[sg.TabGroup([tabs])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable), sg.Button('Cancel', disabled=not editable), sg.Button('Export', disabled=editable)]]
+    return [[sg.TabGroup([tabs])], [sg.Button('Edit', disabled=editable), sg.Button('Save', disabled=not editable),
+                                     sg.Button('Cancel', disabled=not editable), sg.Button('Export', disabled=editable)]]
 
 while True:
     event, values = window.read()

@@ -28,7 +28,7 @@ def address_layout(old, new):
             sg.Radio(f'{old}', group_id='group2', key='-OLD-', enable_events=True),
             sg.Radio(f'{new}', group_id='group2', key='-NEW-', enable_events=True)
         ],
-        [sg.Button('Select', key='-SELECT-', disabled=True)]
+        [sg.Button('Select', key='-SELECT-', disabled=True), sg.Button('Unique ID', key='-ID-')]
     ]
 
 def standardize_address(conn, location_table, site, fieldid, address_cache):
@@ -50,6 +50,22 @@ def standardize_address(conn, location_table, site, fieldid, address_cache):
         return fieldid
     if fieldid in address_cache:
         return address_cache[fieldid]
+    if len(options) > 1:
+        options.append('None')
+        old_add = sg.Window(
+            'Select Old Address',
+            [[sg.Text('Could not detect old Address, please select:')],
+             [sg.Listbox(options, size=(20,5), key='-OPTLIST-', select_mode='LISTBOX_SELECT_MODE_SINGLE')], [sg.Button('Okay', key='-OK-')]]
+        ).Finalize()
+        while True:
+            event, values = old_add.read()
+            if event == sg.WINDOW_CLOSE_ATTEMPTED_EVENT:
+                sg.Popup('Please Select Address')
+            if event == '-OK-':
+                options = values['-OPTLIST-']
+                break
+        old_add.close()
+
     address_correction = sg.Window(
         'Address Standardization',
         address_layout(options[0], fieldid),
@@ -66,13 +82,19 @@ def standardize_address(conn, location_table, site, fieldid, address_cache):
                 if values.get('-NEW-'):
                     for table in table_list:
                         conn.execute(
-                            Update(table),
+                            Update(table).where(table.c.Address == options[0]),
                             [{'Address': fieldid}],
                         )
                     address_cache[fieldid] = fieldid
+                    for key, value in address_cache.items():
+                        if value == options[0]:
+                            address_cache[key] = fieldid
                     return fieldid
                 address_cache[fieldid] = options[0]
                 return options[0]
+            if event == '-ID-':
+                address_cache[fieldid] = fieldid
+                return fieldid
     finally:
         address_correction.close()
 
@@ -202,10 +224,23 @@ def findlabtype(df):
         return 3, matrix
     return 1, matrix
 
+def columns_to_title_case(df):
+    try:
+        df.columns = [
+            str(col).title() if col is not None else "Unnamed" for col in df.columns
+        ]
+        df.rename(columns={'Qaqc': 'QAQC'}, inplace=True)
+        df.rename(columns={'Srpid': 'SRPID'}, inplace=True)
+    except Exception as e:
+        raise ValueError(f"Error renaming columns: {e}")
+    return df
+
 def _validate_import_data(file, samp_file):
     """Parse the input files and exercise conversions used by the importer."""
     df = pd.read_csv(file, sep='\t')
     df2 = pd.read_csv(samp_file, sep='\t')
+    df = columns_to_title_case(df)
+    df2 = columns_to_title_case(df2)
     v, m = findlabtype(df2)
     df2 = assign_matrix_values(df2, v, m)
     mapping = df2.set_index('Sampnum')['Matrix']
@@ -231,8 +266,10 @@ def _validate_import_data(file, samp_file):
     for value in df['Sampdate']:
         pd.to_datetime(value)
     for value in df2['Samptime'].map(clean_value):
-        if value is not None:
-            pd.to_datetime(value).time()
+        try:
+            pd.to_datetime(value, errors='coerce').time()
+        except ValueError:
+            continue
 
     return df, df2
 
@@ -395,7 +432,7 @@ def _import_tsv(file, db, samp_file, df, df2):
         for x in range(0, len(df)):
             result_sampnum = df.loc[x, 'Sampnum']
             labtype = clean_value(df.loc[x, 'Matrix'])
-            location, analyte_name, casn, date, result, res_unit, mdl, flag, labid, labname, filtun, analmeth = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual', 'Labid', 'Labname', 'Filtunfilt', 'Anlys_mthd']]
+            location, analyte_name, casn, date, result, res_unit, mdl, flag, labid, labname, filtun, analmeth = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual', 'Labid', 'Labname', 'Filtunfilt', 'Anlys_Mthd']]
             analdate = pd.to_datetime(df.loc[x, 'Tdanalyz'])
             date = pd.to_datetime(date)
             site = make_site_name(location, date)
@@ -405,12 +442,21 @@ def _import_tsv(file, db, samp_file, df, df2):
             if labtype == 'Groundwater':
                 insert_result(conn, gw_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Depth_top', 'Depth_botm', 'GroundElev', 'Well_elev', 'Screentop', 'Screenbot', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_X', 'Sp_Y', 'Depth_Top', 'Depth_Botm', 'Groundelev', 'Well_Elev', 'Screentop', 'Screenbot', 'Datetolab', 'Sampmethod']]
                     srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, depthtop, depthbot, groundel, wellel, screentop, screenbot, dtlab, sampmeth)]
                     dtlab = pd.to_datetime(dtlab)
                     location = site
-                    time = pd.to_datetime(time).time()
-                    fieldid = standardize_address(conn, gw_location_table, location, fieldid, address_cache)
+                    try:
+                        time = pd.to_datetime(time, errors='coerce').time()
+                    except:
+                        time = pd.to_datetime('Jan 1 2000, 0:00:00').time()
+                    if fieldid[:3] in ['AOC', 'Aoc', 'aoc']:
+                        conn.execute(
+                            Update(gw_location_table).where(gw_location_table.c.Location_Name == location),
+                            [{'Address': fieldid}]
+                        )
+                    else:
+                        fieldid = standardize_address(conn, gw_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(gw_data).where(gw_data.c.Location_Name == location),
                         [{
@@ -446,12 +492,18 @@ def _import_tsv(file, db, samp_file, df, df2):
             elif labtype == 'Soil':
                 insert_result(conn, soil_data, result_record, mark_non_total_as_total=True)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_X', 'Sp_Y', 'Datetolab', 'Sampmethod']]
                     srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
                     dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
-                    fieldid = standardize_address(conn, soil_location_table, location, fieldid, address_cache)
+                    if fieldid[:3] in ['AOC', 'Aoc', 'aoc']:
+                        conn.execute(
+                            Update(soil_location_table).where(soil_location_table.c.Location_Name == location),
+                            [{'Address': fieldid}]
+                        )
+                    else:
+                        fieldid = standardize_address(conn, soil_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(soil_data).where(soil_data.c.Location_Name == location),
                         [{
@@ -481,12 +533,18 @@ def _import_tsv(file, db, samp_file, df, df2):
             elif labtype == 'Porewater':
                 insert_result(conn, porewater_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_X', 'Sp_Y', 'Datetolab', 'Sampmethod']]
                     srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
                     dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
-                    fieldid = standardize_address(conn, porewater_location_table, location, fieldid, address_cache)
+                    if fieldid[:3] in ['AOC', 'Aoc', 'aoc']:
+                        conn.execute(
+                            Update(porewater_location_table).where(porewater_location_table.c.Location_Name == location),
+                            [{'Address': fieldid}]
+                        )
+                    else:
+                        fieldid = standardize_address(conn, porewater_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(porewater_data).where(porewater_data.c.Location_Name == location),
                         [{
@@ -516,12 +574,18 @@ def _import_tsv(file, db, samp_file, df, df2):
             else:
                 insert_result(conn, other_data, result_record)
                 for x in df2.index[df2['Sampnum'] == result_sampnum]:
-                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_x', 'Sp_y', 'Datetolab', 'Sampmethod']]
+                    srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = df2.loc[x, ['SRPID', 'Sampnum', 'Samptime', 'Matrix', 'Fieldid', 'Aocid', 'Sp_X', 'Sp_Y', 'Datetolab', 'Sampmethod']]
                     srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth = [clean_value(value) for value in (srpid, location, time, matrix, fieldid, aocid, spx, spy, dtlab, sampmeth)]
                     dtlab = pd.to_datetime(dtlab)
                     location = site
                     time = pd.to_datetime(time).time()
-                    fieldid = standardize_address(conn, other_location_table, location, fieldid, address_cache)
+                    if fieldid[:3] in ['AOC', 'Aoc', 'aoc']:
+                        conn.execute(
+                            Update(other_location_table).where(other_location_table.c.Location_Name == location),
+                            [{'Address': fieldid}]
+                        )
+                    else:
+                        fieldid = standardize_address(conn, other_location_table, location, fieldid, address_cache)
                     conn.execute(
                         Update(other_data).where(other_data.c.Location_Name == location),
                         [{
