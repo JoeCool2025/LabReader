@@ -231,6 +231,8 @@ def columns_to_title_case(df):
         ]
         df.rename(columns={'Qaqc': 'QAQC'}, inplace=True)
         df.rename(columns={'Srpid': 'SRPID'}, inplace=True)
+        df.rename(columns={'Tdanalyz': 'Tdanalyze'}, inplace=True)
+        df.rename(columns={'Sampmeth': 'Sampmethod'}, inplace=True)
     except Exception as e:
         raise ValueError(f"Error renaming columns: {e}")
     return df
@@ -243,8 +245,8 @@ def _validate_import_data(file, samp_file):
     df2 = columns_to_title_case(df2)
     v, m = findlabtype(df2)
     df2 = assign_matrix_values(df2, v, m)
-    mapping = df2.set_index('Sampnum')['Matrix']
-    df['Matrix'] = df['Sampnum'].map(mapping)
+    mapping = df2.set_index('Samplabid')['Matrix']
+    df['Matrix'] = df['Labid'].map(mapping)
 
     required_result_columns = {
         'QAQC', 'Sampnum', 'Sampdate', 'Analtparam', 'Cas',
@@ -288,7 +290,6 @@ def _import_tsv(file, db, samp_file, df, df2):
         db_path = db_maker(file)
     else:
         db_path = db
-    mapping = df2.set_index('Sampnum')['Matrix']
 
     engine = create_engine(f'sqlite:///{db_path}')
     metadata_obj = MetaData()
@@ -433,7 +434,7 @@ def _import_tsv(file, db, samp_file, df, df2):
             result_sampnum = df.loc[x, 'Sampnum']
             labtype = clean_value(df.loc[x, 'Matrix'])
             location, analyte_name, casn, date, result, res_unit, mdl, flag, labid, labname, filtun, analmeth = df.loc[x, ['Sampnum', 'Analtparam', 'Cas', 'Sampdate', 'Conc', 'Concunits', 'Mdl', 'Qaqual', 'Labid', 'Labname', 'Filtunfilt', 'Anlys_Mthd']]
-            analdate = pd.to_datetime(df.loc[x, 'Tdanalyz'])
+            analdate = pd.to_datetime(df.loc[x, 'Tdanalyze'])
             date = pd.to_datetime(date)
             site = make_site_name(location, date)
             result_record = make_result_record(
